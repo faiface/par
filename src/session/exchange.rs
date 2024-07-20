@@ -89,7 +89,7 @@ where
 {
     let (tx, rx) = oneshot::channel();
     let recv = Recv {
-        p: Box::pin(async { rx.await.ok().expect("sender dropped") }),
+        p: Box::pin(async { rx.await.expect("sender dropped") }),
     };
     let send = Send {
         c: Box::new(|x| tx.send(x).ok().expect("receiver dropped")),

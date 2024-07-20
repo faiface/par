@@ -15,6 +15,12 @@ where
     next_id: usize,
 }
 
+impl<C: Session, E: Session, D> Default for Pool<C, E, D> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[must_use]
 pub enum Transition<Connect, Enter, ConnectionData = ()>
 where
@@ -39,8 +45,9 @@ pub struct Connection<Enter: Session> {
     enter: Box<dyn FnOnce(Enter::Dual) + Send>,
 }
 
-struct Sender<C: Session, E: Session, D>(mpsc::Sender<(Sender<C, E, D>, Transition<C, E, D>)>);
-struct Receiver<C: Session, E: Session, D>(mpsc::Receiver<(Sender<C, E, D>, Transition<C, E, D>)>);
+struct Sender<C: Session, E: Session, D>(mpsc::Sender<Exchange<C, E, D>>);
+struct Receiver<C: Session, E: Session, D>(mpsc::Receiver<Exchange<C, E, D>>);
+type Exchange<C, E, D> = (Sender<C, E, D>, Transition<C, E, D>);
 
 impl<C: Session, E: Session, D> Clone for Sender<C, E, D> {
     fn clone(&self) -> Self {
@@ -55,7 +62,7 @@ trait SenderFn<T>: Send + Sync + 'static {
 
 impl<T, F: FnOnce(T) + Send + Sync + Clone + 'static> SenderFn<T> for F {
     fn clone(&self) -> Box<dyn SenderFn<T>> {
-        Box::new((&self as &F).clone())
+        Box::new((self as &F).clone())
     }
 
     fn send(self: Box<Self>, value: T) {
@@ -81,7 +88,6 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
                 sender
                     .0
                     .try_send((sender.clone(), Transition::Connect { session }))
-                    .ok()
                     .expect("pool dropped");
             }),
         })
@@ -98,7 +104,6 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
                     .0
                     .clone()
                     .try_send((sender, Transition::Enter { session, data: id }))
-                    .ok()
                     .expect("pool dropped");
             }),
         })

@@ -119,7 +119,6 @@ where
         S::fork_sync(|dual| self.enq.send1(Queue::Closed(dual)))
     }
 
-    #[must_use]
     pub fn push(self, item: T) -> Self {
         Self::fork_sync(|dual| self.enq.send1(Queue::Pop(item, dual)))
     }
