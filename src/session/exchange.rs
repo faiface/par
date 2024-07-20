@@ -1,16 +1,41 @@
+//! Sessions that first exchange a single value (possibly also a session) between
+//! their two counterparts, then proceed according to another specified session. The
+//! two sides, receiving and sending, are [`Recv`] and [`Send`] respectively.
+//! 
+//! A session exchanging a value of type `T` and continuing according to a session
+//! `S` will be operated via two handles: [`Recv<T, S>`] in one coroutine, cooperating
+//! with a [`Send<T, Dual<S>>`] in another.
+//! 
+//! After exchanging a `T`, the two counterparts obtain handles for `S` and
+//! [`Dual<S>`](super::Dual) respectively, continuing their cooperation according
+//! to the session `S`.
+//! 
+//! # Blocking and `.await`
+//! 
+//! Sending a value is always non-blocking. Only receiving needs to block
+//! (asynchronously) until a value has been sent from the other side. This means
+//! it's possible to perform multiple sends without waiting for the recipients to
+//! be ready.
+//! 
+//! # Correspondence to linear logic
+//! 
+//! [`Recv`] and [`Send`] directly correspond to the multiplicative connectives of
+//! linear logic. Specifically:
+//! 
+//! - `Recv<A, B>` is A ⊗ B
+//! - `Send<A, B>` is A<sup>⊥</sup> ⅋ B
+
 use std::{marker, pin::Pin};
 
 use futures::{channel::oneshot, Future};
 
 use super::Session;
 
-/// A session that first receives a value of type `T`, then continues with session `S`.
 #[must_use]
 pub struct Recv<T, S: Session = ()> {
     p: Producer<Exchange<T, S>>,
 }
 
-/// A session that first sends a value of type `T`, then continues with session `S`.
 #[must_use]
 pub struct Send<T, S: Session = ()> {
     c: Consumer<Exchange<T, S::Dual>>,
@@ -66,7 +91,6 @@ where T: marker::Send + 'static
 impl<T, S: Session> Recv<T, S>
 where T: marker::Send + 'static
 {
-    /// Waits until a value is sent from its `Send` counterpart, then 
     #[must_use]
     pub async fn recv(mut self) -> (T, S) {
         loop {
