@@ -1,10 +1,9 @@
 use std::{collections::{hash_map::Entry, HashMap}, io};
 
 use futures::{future, stream::{SplitSink, SplitStream}, SinkExt, StreamExt};
+use par::session::{exchange::{Recv, Send}, pool::{Connection, Pool, Transition}, queue::{Dequeue, Enqueue, Queue}, tokio::fork, Dual, Session};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{tungstenite::{self, Message}, WebSocketStream};
-
-use par::session::{pool::{Connection, Pool, Transition}, queue::{Dequeue, Enqueue, Queue}, tokio::fork, Dual, Recv, Send, Session};
 
 type WebSocketWrite = SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>;
 type WebSocketRead  = SplitStream<WebSocketStream<TcpStream>>;

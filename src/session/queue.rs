@@ -2,7 +2,7 @@ use std::marker;
 
 use futures::Future;
 
-use super::{Recv, Send, Session};
+use super::{exchange::{Recv, Send}, Session};
 
 #[must_use]
 pub struct Dequeue<T, S: Session = ()> {
