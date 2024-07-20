@@ -1,6 +1,6 @@
 pub mod exchange;
-pub mod queue;
 pub mod pool;
+pub mod queue;
 pub mod tokio;
 
 pub trait Session: Send + 'static {
@@ -15,6 +15,8 @@ pub type Dual<S> = <S as Session>::Dual;
 
 impl Session for () {
     type Dual = ();
-    fn fork_sync(f: impl FnOnce(Self::Dual)) -> Self { f(()) }
+    fn fork_sync(f: impl FnOnce(Self::Dual)) -> Self {
+        f(())
+    }
     fn link(self, (): Self::Dual) {}
 }

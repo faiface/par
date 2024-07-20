@@ -2,7 +2,10 @@ use std::marker;
 
 use futures::Future;
 
-use super::{exchange::{Recv, Send}, Session};
+use super::{
+    exchange::{Recv, Send},
+    Session,
+};
 
 #[must_use]
 pub struct Dequeue<T, S: Session = ()> {
@@ -20,12 +23,15 @@ pub enum Queue<T, S: Session = ()> {
 }
 
 impl<T, S: Session> Session for Dequeue<T, S>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     type Dual = Enqueue<T, S::Dual>;
 
     fn fork_sync(f: impl FnOnce(Self::Dual)) -> Self {
-        Self { deq: Recv::fork_sync(|send| f(Enqueue { enq: send })) }
+        Self {
+            deq: Recv::fork_sync(|send| f(Enqueue { enq: send })),
+        }
     }
 
     fn link(self, dual: Self::Dual) {
@@ -34,12 +40,15 @@ where T: marker::Send + 'static
 }
 
 impl<T, S: Session> Session for Enqueue<T, S>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     type Dual = Dequeue<T, S::Dual>;
 
     fn fork_sync(f: impl FnOnce(Self::Dual)) -> Self {
-        Self { enq: Send::fork_sync(|recv| f(Dequeue { deq: recv })) }
+        Self {
+            enq: Send::fork_sync(|recv| f(Dequeue { deq: recv })),
+        }
     }
 
     fn link(self, dual: Self::Dual) {
@@ -48,7 +57,8 @@ where T: marker::Send + 'static
 }
 
 impl<T, S: Session> Dequeue<T, S>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     #[must_use]
     pub async fn pop(self) -> Queue<T, S> {
@@ -57,7 +67,8 @@ where T: marker::Send + 'static
 
     #[must_use]
     pub async fn fold<A, F>(mut self, init: A, mut f: impl FnMut(A, T) -> F) -> (A, S)
-    where F: Future<Output = A>
+    where
+        F: Future<Output = A>,
     {
         let mut accum = init;
         loop {
@@ -73,30 +84,35 @@ where T: marker::Send + 'static
 
     #[must_use]
     pub async fn for_each<F>(self, mut f: impl FnMut(T) -> F) -> S
-    where F: Future<Output = ()>
+    where
+        F: Future<Output = ()>,
     {
         self.fold((), |(), item| f(item)).await.1
     }
 }
 
 impl<T> Dequeue<T, ()>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     pub async fn fold1<A, F>(self, init: A, f: impl FnMut(A, T) -> F) -> A
-    where F: Future<Output = A>
+    where
+        F: Future<Output = A>,
     {
         self.fold(init, f).await.0
     }
 
     pub async fn for_each1<F>(self, f: impl FnMut(T) -> F)
-    where F: Future<Output = ()>
+    where
+        F: Future<Output = ()>,
     {
         self.for_each(f).await
     }
 }
 
 impl<T, S: Session> Enqueue<T, S>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     #[must_use]
     pub fn close(self) -> S {
@@ -110,7 +126,8 @@ where T: marker::Send + 'static
 }
 
 impl<T> Enqueue<T, ()>
-where T: marker::Send + 'static
+where
+    T: marker::Send + 'static,
 {
     pub fn close1(self) {
         self.close()

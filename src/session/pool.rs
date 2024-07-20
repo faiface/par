@@ -21,8 +21,13 @@ where
     Connect: Session,
     Enter: Session,
 {
-    Connect { session: Connect },
-    Enter { session: Enter, data: ConnectionData },
+    Connect {
+        session: Connect,
+    },
+    Enter {
+        session: Enter,
+        data: ConnectionData,
+    },
 }
 
 pub struct Proxy<Connect: Session> {
@@ -71,10 +76,15 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
 
     pub fn proxy(&self, f: impl FnOnce(Proxy<C::Dual>)) {
         let mut sender = self.sender.clone();
-        f(Proxy { connect: Box::new(move |session| {
-            sender.0.try_send((sender.clone(), Transition::Connect { session }))
-                .ok().expect("pool dropped");
-        }) })
+        f(Proxy {
+            connect: Box::new(move |session| {
+                sender
+                    .0
+                    .try_send((sender.clone(), Transition::Connect { session }))
+                    .ok()
+                    .expect("pool dropped");
+            }),
+        })
     }
 
     pub fn connection_with_data(&mut self, data: D, f: impl FnOnce(Connection<E::Dual>)) {
@@ -82,14 +92,21 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
         let id = self.next_id;
         self.next_id += 1;
         self.data.insert(id, data);
-        f(Connection { enter: Box::new(move |session| {
-            sender.0.clone().try_send((sender, Transition::Enter { session, data: id }))
-                .ok().expect("pool dropped");
-        }) })
+        f(Connection {
+            enter: Box::new(move |session| {
+                sender
+                    .0
+                    .clone()
+                    .try_send((sender, Transition::Enter { session, data: id }))
+                    .ok()
+                    .expect("pool dropped");
+            }),
+        })
     }
 
     pub fn connection(&mut self, f: impl FnOnce(Connection<E::Dual>))
-    where D: Default
+    where
+        D: Default,
     {
         self.connection_with_data(D::default(), f)
     }
@@ -112,7 +129,7 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
                     }
                 };
                 Some((self, trans))
-            },
+            }
             None => None,
         }
     }
@@ -126,7 +143,9 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
 
 impl<C: Session> Proxy<C> {
     pub fn clone(&self, f: impl FnOnce(Self)) {
-        f(Self { connect: self.connect.clone() })
+        f(Self {
+            connect: self.connect.clone(),
+        })
     }
 
     #[must_use]
