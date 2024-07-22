@@ -12,18 +12,23 @@
 //!
 //! # Blocking and `.await`
 //!
-//! Sending a value is always non-blocking. Only receiving needs to block
-//! (asynchronously) until a value has been sent from the other side. This means
-//! it's possible to perform multiple sends without waiting for the recipients to
-//! be ready.
+//! Sending is always non-blocking. Only receiving needs to block (asynchronously) until
+//! a value has been sent from the other side. This means it's possible to perform multiple
+//! sends without waiting for the recipients to be ready.
 //!
 //! # Correspondence to linear logic
 //!
 //! [`Recv`] and [`Send`] directly correspond to the multiplicative connectives of
 //! linear logic. Specifically:
 //!
-//! - `Recv<A, B>` is A ⊗ B
-//! - `Send<A, B>` is A<sup>⊥</sup> ⅋ B
+//! - `Recv<A, B>` is **A ⊗ B**
+//! - `Send<A, B>` is **A<sup>⊥</sup> ⅋ B**
+//!
+//! And, their unary versions composed with enums correspond to the additive connectives
+//! of linear logic. Using the enum `Result`, we have:
+//! 
+//! - `Recv<Result<A, B>>` is **A ⊕ B**
+//! - `Send<Result<A, B>>` is **A<sup>⊥</sup> & B<sup>⊥</sup>**
 
 use std::{marker, pin::Pin};
 
