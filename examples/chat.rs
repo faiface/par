@@ -8,7 +8,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use par::session::{
+use par::{
     exchange::{Recv, Send},
     pool::{Connection, Pool, Transition},
     queue::{Dequeue, Enqueue, Queue},
