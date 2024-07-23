@@ -50,7 +50,7 @@
 //!         sender.send1(7);
 //!     });
 //!     // scope of Recv<i64>
-//!     assert_eq!(7, receiver.recv1().await);
+//!     assert_eq!(receiver.recv1().await, 7);
 //! }
 //! ```
 //!
@@ -64,12 +64,12 @@
 //! For example, with Tokio:
 //!
 //! ```
-//! let receiver: Recv<i64> = Recv::fork_sync(|sender: Send<i64>| {
+//! let sender: Send<i64> = Send::fork_sync(|receiver: Recv<i64>| {
 //!     drop(tokio::spawn(async {
-//!         // use `sender` here
+//!         assert_eq!(receiver.recv1().await, 7);
 //!     }))
 //! });
-//! // use `receiver` here
+//! sender.send1(7);
 //! ```
 //!
 //! This crate provides utility modules for forking using popular runtimes. With these,
@@ -78,10 +78,10 @@
 //! ```
 //! use par::tokio::fork;
 //! 
-//! let receiver: Recv<i64> = fork(|sender: Send<i64>| async {
-//!     // use `sender` here
+//! let sender: Send<i64> = fork(|receiver: Recv<i64>| async {
+//!     assert_eq!(receiver.recv1().await, 7);
 //! });
-//! // use `receiver` here
+//! sender.send1(7);
 //! ```
 
 pub mod exchange;
