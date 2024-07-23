@@ -42,7 +42,7 @@
 //! purpose.
 //!
 //! ```
-//! use par::exchange::{Recv, Send, Session};
+//! use par::{exchange::{Recv, Send}, Session};
 //! 
 //! async fn forking() {
 //!     let receiver: Recv<i64> = Recv::fork_sync(|sender: Send<i64>| {
