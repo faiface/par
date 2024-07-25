@@ -140,12 +140,6 @@ impl<C: Session, E: Session, D> Pool<C, E, D> {
     }
 }
 
-/*impl<C: Session> Clone for Proxy<C> {
-    fn clone(&self) -> Self {
-        Self { connect: self.connect.clone() }
-    }
-}*/
-
 impl<C: Session> Proxy<C> {
     pub fn clone(&self, f: impl FnOnce(Self)) {
         f(Self {

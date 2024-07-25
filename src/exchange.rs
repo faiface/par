@@ -26,7 +26,7 @@
 //!
 //! And, their unary versions composed with enums correspond to the additive connectives
 //! of linear logic. Using the enum `Result`, we have:
-//! 
+//!
 //! - `Recv<Result<A, B>>` is **A ⊕ B**
 //! - `Send<Result<A, B>>` is **A<sup>⊥</sup> & B<sup>⊥</sup>**
 
