@@ -12,7 +12,7 @@ use par::{
     exchange::{Recv, Send},
     pool::{Connection, Pool, Transition},
     queue::{Dequeue, Enqueue, Queue},
-    tokio::fork,
+    runtimes::tokio::fork,
     Dual, Session,
 };
 use tokio::net::{TcpListener, TcpStream};

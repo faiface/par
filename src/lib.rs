@@ -22,7 +22,7 @@
 //! _The particular flavor of session types presented here is a full implementation
 //! of propositional linear logic. However, no knowledge of linear logic is required to use
 //! or understand this library._
-//! 
+//!
 //! # Forking
 //!
 //! Communication involves two opposite points of view. For example, an exchange
@@ -43,7 +43,7 @@
 //!
 //! ```
 //! use par::{exchange::{Recv, Send}, Session};
-//! 
+//!
 //! async fn forking() {
 //!     let receiver: Recv<i64> = Recv::fork_sync(|sender: Send<i64>| {
 //!         // scope of Send<i64>
@@ -77,7 +77,7 @@
 //!
 //! ```
 //! use par::tokio::fork;
-//! 
+//!
 //! let sender: Send<i64> = fork(|receiver: Recv<i64>| async {
 //!     assert_eq!(receiver.recv1().await, 7);
 //! });
@@ -87,7 +87,7 @@
 pub mod exchange;
 pub mod pool;
 pub mod queue;
-pub mod tokio;
+pub mod runtimes;
 
 pub trait Session: Send + 'static {
     type Dual: Session<Dual = Self>;
