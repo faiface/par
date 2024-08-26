@@ -103,7 +103,7 @@
 //! ```
 //!
 //! The unit type `()` implements [Session] and represents an empty, finished session.
-//! It's self-dual, its dual is itself.*
+//! It's self-dual, its dual is `()`.*
 //!
 //! We can choose different continuations to make sequential sessions. For example:
 //!
@@ -176,8 +176,8 @@
 //! The difference between [.recv()](exchange::Recv::recv) and
 //! [.recv1()](exchange::Recv::recv1), and between [.send()](exchange::Send::send)
 //! and [.send1()](exchange::Send::send1) is about the continuation.
-//! The versions ending with `1`, [.recv1()](exchange::Recv::recv1) and
-//! [.send1()](exchange::Send::send1) can only be used if the continuation is `()`.
+//! The versions ending with 1, [.recv1()](exchange::Recv::recv1) and
+//! [.send1()](exchange::Send::send1), can only be used if the continuation is `()`.
 //! Unlike their general versions, [.recv()](exchange::Recv::recv) and
 //! [.send()](exchange::Send::send), they don't return a continuation, and are
 //! not marked as `#[must_use]`.**
@@ -196,6 +196,105 @@
 //! **_The methods returning a continuation, [.recv()](exchange::Recv::recv) and
 //! [.send()](exchange::Send::send), are marked as `#[must_use]` because sessions
 //! must not be dropped._
+//!
+//! # Branching
+//!
+//! Now that we know how to move forward, it's time to take a turn. Say we want to
+//! describe a communication between an ATM and a client interacting with its buttons.
+//! To make it simple, the interaction goes like this:
+//!
+//! 1. Client inserts a bank card.
+//! 2. If the card number is not valid, ATM rejects it and the session ends.
+//! 3. Otherwise, the ATM presents the client with two buttons:
+//!    - **Check balance:** ATM shows the balance on the account and the session ends.
+//!    - **Withdraw cash:** After pressing this button, the client enters the desired amount to withdraw.
+//!      - If the amount is above the card's balance, ATM rejects and the session ends.
+//!      - Otherwise all is good, the ATM outputs the desired amount and the session ends, too.
+//!
+//! To model such branching interaction, no additional dedicated types are provided by this crate.
+//! Instead, we make use of Rust's native enums, and the ability to send and receive not only values,
+//! but session as well.
+//!
+//! We start backwards, by modeling the interaction after an operation is selected:
+//!
+//! ```
+//! use par::{exchange::{Recv, Send}, Session};
+//!
+//! struct Amount(i64);
+//! struct Money(i64);
+//! struct InsufficientFunds;
+//!
+//! enum Operation {
+//!     CheckBalance(Send<Amount>),
+//!     Withdraw(Recv<Amount, Send<Result<Money, InsufficientFunds>>>),
+//! }
+//! ```
+//!
+//! The helper types -- `Amount`, `Money`, and `InsufficientFunds` -- are just to aid readability.
+//!
+//! When branching, the first thing to decide is who is choosing, and who is offering a choice. In this
+//! case, the client is choosing from two options offered by the ATM. In other words, the client will
+//! send a selected `Operation` to the ATM, which receives it.
+//!
+//! That's why the sessions exchanged are described from the ATM's point of view:
+//! - `Operation::CheckBalance` proceeds to send the account's balance to the client.
+//! - `Operation::Withdraw` starts by receiving an amount requested by the client, then goes on to
+//!   either send cash to the client, or reject due to insufficient funds.
+//!
+//! Note, that there are already (kind of) two branching points above. One is between the two buttons,
+//! the second one is chosen by the ATM to accept or reject the requested amount. This second choice
+//! is only a "kind of" branching because no sessions are exchanged. But, an equivalent way to encode
+//! it would be to include a reception of the money on the client's side:
+//! `...Result<Recv<Money>, InsufficientFunds>...`.
+//!
+//! The beginning of the interaction then involves sending a selected `Operation` to the ATM, after
+//! validating the account's number:
+//!
+//! ```
+//! struct Account(String);
+//! struct InvalidAccount;
+//!
+//! type ATM = Send<Account, Recv<Result<Send<Operation>, InvalidAccount>>>;
+//! ```
+//!
+//! Here the session is described from the client's point of view. That's arbitrary as the ATM's point
+//! of view is simply the dual of the above:
+//!
+//! ```
+//! use par::Dual;
+//!
+//! type Client = Dual<ATM>;  // Recv<Account, Send<Result<Send<Operation>, InvalidAccount>>>
+//! ```
+//!
+//! Being able to model the session by freely using custom (`Operation`) or standard ([`Result`]) enums
+//! is certainly expressive, but how ergonomic is it to implement these sessions? Turns out it ends up
+//! quite ergonomic thanks to a clever [`.choose()`](exchange::Send::choose) method on [`Send`](exchange::Send).
+//!
+//! ```
+//! use std::collections::HashMap;
+//!
+//! use par::runtimes::tokio::fork;
+//!
+//! fn boot_atm(accounts: HashMap<String, Money>) -> ATM {
+//!     fork(|client: Client| async move {
+//!         let (Account(number), client) = client.recv().await;
+//!         let Some(Money(&funds)) = accounts.get(&number) else {
+//!             return client.send1(Err(InvalidAccount));
+//!         };
+//!         match client.choose(Ok).recv1().await {
+//!             Operation::CheckBalance(client) => client.send1(Amount(funds)),
+//!             Operation::Withdraw(client) => {
+//!                 let (Amount(requested), client) = client.recv().await;
+//!                 if funds >= requested {
+//!                     client.send1(Ok(Money(requested)));
+//!                 } else {
+//!                     client.send1(Err(InsufficientFunds));
+//!                 }
+//!             },
+//!         }
+//!     })
+//! }
+//! ```
 
 pub mod exchange;
 pub mod pool;
