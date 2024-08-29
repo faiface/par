@@ -218,7 +218,7 @@
 //! We start backwards, by modeling the interaction after an operation is selected:
 //!
 //! ```
-//! use par::{exchange::{Recv, Send}, Session};
+//! use par::exchange::{Recv, Send};
 //!
 //! struct Amount(i64);
 //! struct Money(i64);
@@ -266,7 +266,9 @@
 //! type Client = Dual<ATM>;  // Recv<Account, Send<Result<Send<Operation>, InvalidAccount>>>
 //! ```
 //!
-//! Being able to model the session by freely using custom (`Operation`) or standard ([`Result`]) enums
+//! ## [`Send::choose`](exchange::Send::choose)
+//!
+//! Being able to model a session by freely using custom (`Operation`) or standard ([`Result`]) enums
 //! is certainly expressive, but how ergonomic is it to implement these sessions? Turns out it ends up
 //! quite ergonomic thanks to a clever [`.choose()`](exchange::Send::choose) method on [`Send`](exchange::Send).
 //!
@@ -278,10 +280,10 @@
 //! fn boot_atm(accounts: HashMap<String, Money>) -> ATM {
 //!     fork(|client: Client| async move {
 //!         let (Account(number), client) = client.recv().await;
-//!         let Some(Money(&funds)) = accounts.get(&number) else {
+//!         let Some(&Money(funds)) = accounts.get(&number) else {
 //!             return client.send1(Err(InvalidAccount));
 //!         };
-//!         match client.choose(Ok).recv1().await {
+//!         match client.choose(Ok).recv1().await {  // <---*
 //!             Operation::CheckBalance(client) => client.send1(Amount(funds)),
 //!             Operation::Withdraw(client) => {
 //!                 let (Amount(requested), client) = client.recv().await;
@@ -294,6 +296,64 @@
 //!         }
 //!     })
 //! }
+//! ```
+//!
+//! The code leading up to the highlighted line should appear a straightforward application of
+//! the material covered thus far.
+//!
+//! ```
+//! match client.choose(Ok).recv1().await {
+//! ```
+//!
+//! At this point, the type of `client` is `Send<Result<Send<Operation>, InvalidAccount>>`. With the
+//! account number validated, the ATM is supposed to send a session handle of type `Send<Operation>`
+//! wrapped in `Result::Ok`. Without using [`.choose()`](exchange::Send::choose), there are two ways
+//! to accomplish this.
+//!
+//! 1. An **inside** way:
+//! 
+//!    ```
+//!    client.send1(Ok(fork(|client: Recv<Operation>| async {
+//!        match client.recv1().await {
+//!           // ...
+//!        }
+//!    })));
+//!    ```
+//!
+//! 2. An **outside** way:
+//! 
+//!    ```
+//!    let client = fork(|atm: Send<Operation>| async {
+//!        client.send1(Ok(atm));
+//!    });
+//!    match client.recv1().await {
+//!        // ...
+//!    }
+//!    ```
+//!
+//!    Which can also be written with [`fork_sync`](Session::fork_sync)!
+//! 
+//!    ```
+//!    let client = <Recv<Operation>>::fork_sync(|atm| client.send1(Ok(atm)));
+//!    match client.recv1().await {
+//!        // ...
+//!    }
+//!    ```
+//!
+//! Since avoiding nesting is beneficial enough to warrant (validly) the whole async/await paradigm
+//! replacing callbacks, the **outside** way is superior.
+//!
+//! All [`.choose()`](exchange::Send::choose) does is codify this outside form into a method. In general,
+//! with any `Enum` and its `Enum::Variant`,
+//!
+//! ```
+//! let session = Session::fork_sync(|dual| session.send1(Enum::Variant(dual)));
+//! ```
+//!
+//! becomes
+//!
+//! ```
+//! let session = session.choose(Enum::Variant);
 //! ```
 
 pub mod exchange;
