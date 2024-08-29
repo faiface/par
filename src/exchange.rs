@@ -30,24 +30,19 @@
 //! - `Recv<Result<A, B>>` is **A ⊕ B**
 //! - `Send<Result<A, B>>` is **A<sup>⊥</sup> & B<sup>⊥</sup>**
 
-use std::{marker, pin::Pin};
-
-use futures::{channel::oneshot, Future};
-
 use super::Session;
+use futures::channel::oneshot;
+use std::marker;
 
 #[must_use]
 pub struct Recv<T, S: Session = ()> {
-    p: Producer<Exchange<T, S>>,
+    rx: oneshot::Receiver<Exchange<T, S>>,
 }
 
 #[must_use]
 pub struct Send<T, S: Session = ()> {
-    c: Consumer<Exchange<T, S::Dual>>,
+    tx: oneshot::Sender<Exchange<T, S::Dual>>,
 }
-
-type Producer<T> = Pin<Box<dyn Future<Output = T> + marker::Send + 'static>>;
-type Consumer<T> = Box<dyn FnOnce(T) + marker::Send + 'static>;
 
 enum Exchange<T, S: Session> {
     Send((T, S)),
@@ -67,7 +62,10 @@ where
     }
 
     fn link(self, dual: Self::Dual) {
-        (dual.c)(Exchange::Link(self))
+        dual.tx
+            .send(Exchange::Link(self))
+            .ok()
+            .expect("receiver dropped")
     }
 }
 
@@ -84,7 +82,10 @@ where
     }
 
     fn link(self, dual: Self::Dual) {
-        (self.c)(Exchange::Link(dual))
+        self.tx
+            .send(Exchange::Link(dual))
+            .ok()
+            .expect("receiver dropped")
     }
 }
 
@@ -93,13 +94,7 @@ where
     T: marker::Send + 'static,
 {
     let (tx, rx) = oneshot::channel();
-    let recv = Recv {
-        p: Box::pin(async { rx.await.expect("sender dropped") }),
-    };
-    let send = Send {
-        c: Box::new(|x| tx.send(x).ok().expect("receiver dropped")),
-    };
-    (recv, send)
+    (Recv { rx }, Send { tx })
 }
 
 impl<T, S: Session> Recv<T, S>
@@ -109,7 +104,7 @@ where
     #[must_use]
     pub async fn recv(mut self) -> (T, S) {
         loop {
-            match self.p.await {
+            match self.rx.await.expect("sender dropped") {
                 Exchange::Send(x) => break x,
                 Exchange::Link(r) => self = r,
             }
@@ -132,7 +127,12 @@ where
 {
     #[must_use]
     pub fn send(self, value: T) -> S {
-        S::fork_sync(|dual| (self.c)(Exchange::Send((value, dual))))
+        S::fork_sync(|dual| {
+            self.tx
+                .send(Exchange::Send((value, dual)))
+                .ok()
+                .expect("receiver dropped")
+        })
     }
 }
 
@@ -146,20 +146,7 @@ where
 
     #[must_use]
     pub fn choose<S: Session>(self, choice: fn(S) -> T) -> S::Dual {
-        //TODO: simplify?
-        Send {
-            c: Box::new(move |x| {
-                (self.c)(match x {
-                    Exchange::Send((session, ())) => Exchange::Send((choice(session), ())),
-                    Exchange::Link(link) => Exchange::Link(Recv {
-                        p: Box::pin(
-                            async move { Exchange::Send((choice(link.recv1().await), ())) },
-                        ),
-                    }),
-                })
-            }),
-        }
-        .handle()
+        S::Dual::fork_sync(|session| self.send1(choice(session)))
     }
 }
 
