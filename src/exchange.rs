@@ -62,10 +62,7 @@ where
     }
 
     fn link(self, dual: Self::Dual) {
-        dual.tx
-            .send(Exchange::Link(self))
-            .ok()
-            .expect("receiver dropped")
+        dual.link(self)
     }
 }
 
