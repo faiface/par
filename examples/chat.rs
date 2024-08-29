@@ -1,8 +1,3 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    io,
-};
-
 use futures::{
     future,
     stream::{SplitSink, SplitStream},
@@ -14,6 +9,10 @@ use par::{
     queue::{Dequeue, Enqueue, Queue},
     runtimes::tokio::fork,
     Dual, Session,
+};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    io,
 };
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{

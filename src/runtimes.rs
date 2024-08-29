@@ -1,7 +1,6 @@
 pub mod tokio {
-    use futures::Future;
-
     use crate::Session;
+    use futures::Future;
 
     pub fn fork<S: Session, F>(f: impl FnOnce(S::Dual) -> F) -> S
     where
@@ -12,9 +11,8 @@ pub mod tokio {
 }
 
 pub mod spawn {
-    use futures::{task::SpawnExt, Future};
-
     use crate::Session;
+    use futures::{task::SpawnExt, Future};
 
     pub trait Fork {
         fn fork<S: Session, F>(&self, f: impl FnOnce(S::Dual) -> F) -> S
@@ -33,9 +31,8 @@ pub mod spawn {
 }
 
 pub mod local_spawn {
-    use futures::{task::LocalSpawnExt, Future};
-
     use crate::Session;
+    use futures::{task::LocalSpawnExt, Future};
 
     pub trait Fork {
         fn fork<S: Session, F>(&self, f: impl FnOnce(S::Dual) -> F) -> S

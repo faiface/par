@@ -311,7 +311,7 @@
 //! to accomplish this.
 //!
 //! 1. An **inside** way:
-//! 
+//!
 //!    ```
 //!    client.send1(Ok(fork(|client: Recv<Operation>| async {
 //!        match client.recv1().await {
@@ -321,7 +321,7 @@
 //!    ```
 //!
 //! 2. An **outside** way:
-//! 
+//!
 //!    ```
 //!    let client = fork(|atm: Send<Operation>| async {
 //!        client.send1(Ok(atm));
@@ -332,7 +332,7 @@
 //!    ```
 //!
 //!    Which can also be written with [`fork_sync`](Session::fork_sync)!
-//! 
+//!
 //!    ```
 //!    let client = <Recv<Operation>>::fork_sync(|atm| client.send1(Ok(atm)));
 //!    match client.recv1().await {

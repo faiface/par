@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
-use futures::{channel::mpsc, StreamExt};
-
 use super::Session;
+use futures::{channel::mpsc, StreamExt};
+use std::collections::HashMap;
 
 pub struct Pool<Connect, Enter, ConnectionData = ()>
 where

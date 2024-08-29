@@ -1,11 +1,9 @@
-use std::marker;
-
-use futures::Future;
-
 use super::{
     exchange::{Recv, Send},
     Session,
 };
+use futures::Future;
+use std::marker;
 
 #[must_use]
 pub struct Dequeue<T, S: Session = ()> {
