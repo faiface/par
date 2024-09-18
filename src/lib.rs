@@ -257,7 +257,7 @@
 //! type ATM = Send<Account, Recv<Result<Send<Operation>, InvalidAccount>>>;
 //! ```
 //!
-//! Here the session is described from the client's point of view. That's arbitrary as the ATM's point
+//! Here the session is described from the client's point of view. That's arbitrary choice -- the ATM's point
 //! of view is simply the dual of the above:
 //!
 //! ```
@@ -269,82 +269,75 @@
 //! ## [`Send::choose`](exchange::Send::choose)
 //!
 //! Being able to model a session by freely using custom (`Operation`) or standard ([`Result`]) enums
-//! is certainly expressive, but how ergonomic is it to implement these sessions? Turns out it ends up
-//! quite ergonomic thanks to a clever [`.choose()`](exchange::Send::choose) method on [`Send`](exchange::Send).
+//! is certainly expressive, but how ergonomic is it to use? Turns out it can be quite ergonomic thanks to
+//! the [`.choose()`](exchange::Send::choose) method on [`Send`](exchange::Send).
+//!
+//! Let's implement a client that checks the balance on their account. Here's a function that, given an
+//! account number, starts a `Client` session which does exactly that:
 //!
 //! ```
-//! use std::collections::HashMap;
-//!
 //! use par::runtimes::tokio::fork;
-//!
-//! fn boot_atm(accounts: HashMap<String, Money>) -> ATM {
-//!     fork(|client: Client| async move {
-//!         let (Account(number), client) = client.recv().await;
-//!         let Some(&Money(funds)) = accounts.get(&number) else {
-//!             return client.send1(Err(InvalidAccount));
+//! 
+//! fn check_balance(number: String) -> Client {
+//!     fork(|atm: ATM| async move {
+//!         let atm = atm.send(Account(number.clone()));
+//!         let Ok(atm) = atm.recv1().await else {
+//!             return println!("invalid account: {}", number);
 //!         };
-//!         match client.choose(Ok).recv1().await {  // <---*
-//!             Operation::CheckBalance(client) => client.send1(Amount(funds)),
-//!             Operation::Withdraw(client) => {
-//!                 let (Amount(requested), client) = client.recv().await;
-//!                 if funds >= requested {
-//!                     client.send1(Ok(Money(requested)));
-//!                 } else {
-//!                     client.send1(Err(InsufficientFunds));
-//!                 }
-//!             },
-//!         }
+//!         let Amount(funds) = atm.choose(Operation::CheckBalance).recv1().await;
+//!         println!("{} has {}", number, funds);
 //!     })
 //! }
 //! ```
 //!
-//! The code leading up to the highlighted line should appear a straightforward application of
-//! the material covered thus far.
+//! After sending the account number and receiving a positive response from the ATM, the client is
+//! presented with a choice of the operation: _check balance_ or _withdraw money_.
 //!
 //! ```
-//! match client.choose(Ok).recv1().await {
+//! let Amount(funds) = atm.choose(Operation::CheckBalance).recv1().await;
 //! ```
 //!
-//! At this point, the type of `client` is `Send<Result<Send<Operation>, InvalidAccount>>`. With the
-//! account number validated, the ATM is supposed to send a session handle of type `Send<Operation>`
-//! wrapped in `Result::Ok`. Without using [`.choose()`](exchange::Send::choose), there are two ways
-//! to accomplish this.
+//! At this point, the type of `atm` is `Send<Operation>`. But instead of calling [`.send1()`](exchange::Send::send1),
+//! we [choose](exchange::Send::choose) `Operation::CheckBalance`, then receive the answer from the ATM. What is
+//! going on?
+//! 
+//! Without using [`.choose()`](exchange::Send::choose), there are two ways to accomplish the same.
 //!
-//! 1. An **inside** way:
+//! 1. The **inside** way:
 //!
 //!    ```
-//!    client.send1(Ok(fork(|client: Recv<Operation>| async {
-//!        match client.recv1().await {
-//!           // ...
-//!        }
+//!    atm.send1(Operation::CheckBalance(fork(|atm: Recv<Amount>| async move {
+//!        let Amount(funds) = atm.recv1().await;
+//!        println!("{} has {}", number, funds);
 //!    })));
 //!    ```
 //!
-//! 2. An **outside** way:
+//! 2. The **outside** way:
 //!
 //!    ```
-//!    let client = fork(|atm: Send<Operation>| async {
-//!        client.send1(Ok(atm));
+//!    let atm: Recv<Amount> = fork(|client: Send<Amount>| async move {
+//!        atm.send1(Operation::CheckBalance(client));
 //!    });
-//!    match client.recv1().await {
-//!        // ...
-//!    }
+//!    let Amount(funds) = atm.recv1().await;
+//!    println!("{} has {}", number, funds);
 //!    ```
 //!
 //!    Which can also be written with [`fork_sync`](Session::fork_sync)!
 //!
 //!    ```
-//!    let client = <Recv<Operation>>::fork_sync(|atm| client.send1(Ok(atm)));
-//!    match client.recv1().await {
-//!        // ...
-//!    }
+//!    let atm = <Recv<Amount>>::fork_sync(|client: Send<Amount>| {
+//!        atm.send1(Operation::CheckBalance(client))
+//!    });
+//!    let Amount(funds) = atm.recv1().await;
+//!    println!("{} has {}", number, funds);
 //!    ```
 //!
-//! Since avoiding nesting is beneficial enough to warrant (validly) the whole async/await paradigm
-//! replacing callbacks, the **outside** way is superior.
+//! The inside way introduces nesting of the follow-up code which the outside way avoids. Since
+//! avoiding nesting is beneficial enough to warrant (validly) the whole async/await paradigm
+//! (replacing nested callbacks), the **outside** way is superior.
 //!
-//! All [`.choose()`](exchange::Send::choose) does is codify this outside form into a method. In general,
-//! with any `Enum` and its `Enum::Variant`,
+//! In short, all [`.choose()`](exchange::Send::choose) does is codify this outside form into a method.
+//! With any `Enum` and its `Enum::Variant`,
 //!
 //! ```
 //! let session = Session::fork_sync(|dual| session.send1(Enum::Variant(dual)));
@@ -354,6 +347,30 @@
 //!
 //! ```
 //! let session = session.choose(Enum::Variant);
+//! ```
+//!
+//! Without any additional explanation, here's a possible implementation of a client withdrawing money.
+//!
+//! ```
+//! fn withdraw(number: String, Amount(requested): Amount) -> Client {
+//!     fork(|atm: ATM| async move {
+//!         let Ok(atm) = atm.send(Account(number.clone())).recv1().await else {
+//!             return println!("invalid account: {}", number);
+//!         };
+//!         let response = atm
+//!             .choose(Operation::Withdraw)
+//!             .send(Amount(requested))
+//!             .recv1()
+//!             .await;
+//!         match response {
+//!             Ok(Money(withdrawn)) => println!("{} withdrawn from {}", withdrawn, number),
+//!             Err(InsufficientFunds) => println!(
+//!                 "{} has insufficient funds to withdraw {}",
+//!                 number, requested
+//!             ),
+//!         }
+//!     })
+//! }
 //! ```
 
 pub mod exchange;
