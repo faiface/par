@@ -2,7 +2,7 @@ use super::Session;
 use futures::{channel::mpsc, StreamExt};
 use std::collections::HashMap;
 
-pub struct Pool<Connect, Enter, ConnectionData = ()>
+pub struct Server<Connect, Enter, ConnectionData = ()>
 where
     Connect: Session,
     Enter: Session,
@@ -13,7 +13,7 @@ where
     next_id: usize,
 }
 
-impl<C: Session, E: Session, D> Default for Pool<C, E, D> {
+impl<C: Session, E: Session, D> Default for Server<C, E, D> {
     fn default() -> Self {
         Self::new()
     }
@@ -68,7 +68,7 @@ impl<T, F: FnOnce(T) + Send + Sync + Clone + 'static> SenderFn<T> for F {
     }
 }
 
-impl<C: Session, E: Session, D> Pool<C, E, D> {
+impl<C: Session, E: Session, D> Server<C, E, D> {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(0);
         Self {

@@ -5,7 +5,7 @@ use futures::{
 };
 use par::{
     exchange::{Recv, Send},
-    pool::{Connection, Pool, Transition},
+    server::{Connection, Server, Transition},
     queue::{Dequeue, Enqueue, Queue},
     runtimes::tokio::fork,
     Dual, Session,
@@ -53,7 +53,7 @@ async fn main() -> io::Result<()> {
 }
 
 async fn serve(listener: TcpListener) {
-    let mut pool = Pool::<Login, Outbox, Nick>::new();
+    let mut pool = Server::<Login, Outbox, Nick>::new();
 
     pool.proxy(|p| {
         drop(tokio::spawn(accept_users(listener).for_each1(
