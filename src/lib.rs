@@ -89,7 +89,7 @@
 //! **sequencing**, **branching**, and **recursion**. These, together with
 //! [Recv](exchange::Recv) and [Send](exchange::Send), are enough to construct
 //! any complex session types (within the possibilities of the present framework). The
-//! other modules, [queue] and [pool], merely standardize some (very useful) patterns.
+//! other modules, [queue] and [server], merely standardize some (very useful) patterns.
 //!
 //! # Sequencing
 //!
@@ -277,7 +277,7 @@
 //!
 //! ```
 //! use par::runtimes::tokio::fork;
-//! 
+//!
 //! fn check_balance(number: String) -> Client {
 //!     fork(|atm: ATM| async move {
 //!         let atm = atm.send(Account(number.clone()));
@@ -300,7 +300,7 @@
 //! At this point, the type of `atm` is `Send<Operation>`. But instead of calling [`.send1()`](exchange::Send::send1),
 //! we [choose](exchange::Send::choose) `Operation::CheckBalance`, then receive the answer from the ATM. What is
 //! going on?
-//! 
+//!
 //! Without using [`.choose()`](exchange::Send::choose), there are two ways to accomplish the same.
 //!
 //! 1. The **inside** way:
@@ -372,9 +372,11 @@
 //!     })
 //! }
 //! ```
+//!
+//! # Recursion
 
 pub mod exchange;
-pub mod pool;
+pub mod server;
 pub mod queue;
 pub mod runtimes;
 
