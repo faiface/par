@@ -142,7 +142,7 @@ where
     }
 
     #[must_use]
-    pub fn choose<S: Session>(self, choice: fn(S) -> T) -> S::Dual {
+    pub fn choose<S: Session>(self, choice: impl FnOnce(S) -> T) -> S::Dual {
         S::Dual::fork_sync(|session| self.send1(choice(session)))
     }
 }
