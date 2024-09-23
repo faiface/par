@@ -13,7 +13,7 @@ where
     next_id: usize,
 }
 
-impl<C: Session, E: Session, D> Default for Server<C, E, D> {
+impl<C: Session, R: Session, D> Default for Server<C, R, D> {
     fn default() -> Self {
         Self::new()
     }
@@ -43,11 +43,11 @@ pub struct Connection<Resume: Session> {
     resume: Box<dyn FnOnce(Resume::Dual) + Send>,
 }
 
-struct Sender<C: Session, E: Session, D>(mpsc::Sender<Exchange<C, E, D>>);
-struct Receiver<C: Session, E: Session, D>(mpsc::Receiver<Exchange<C, E, D>>);
-type Exchange<C, E, D> = (Sender<C, E, D>, Transition<C, E, D>);
+struct Sender<C: Session, R: Session, D>(mpsc::Sender<Exchange<C, R, D>>);
+struct Receiver<C: Session, R: Session, D>(mpsc::Receiver<Exchange<C, R, D>>);
+type Exchange<C, R, D> = (Sender<C, R, D>, Transition<C, R, D>);
 
-impl<C: Session, E: Session, D> Clone for Sender<C, E, D> {
+impl<C: Session, R: Session, D> Clone for Sender<C, R, D> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
@@ -68,7 +68,7 @@ impl<T, F: FnOnce(T) + Send + Sync + Clone + 'static> SenderFn<T> for F {
     }
 }
 
-impl<C: Session, E: Session, D> Server<C, E, D> {
+impl<C: Session, R: Session, D> Server<C, R, D> {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel(0);
         Self {
@@ -91,7 +91,7 @@ impl<C: Session, E: Session, D> Server<C, E, D> {
         })
     }
 
-    pub fn connection_with_data(&mut self, data: D, f: impl FnOnce(Connection<E::Dual>)) {
+    pub fn connection_with_data(&mut self, data: D, f: impl FnOnce(Connection<R::Dual>)) {
         let sender = self.sender.clone();
         let id = self.next_id;
         self.next_id += 1;
@@ -107,19 +107,19 @@ impl<C: Session, E: Session, D> Server<C, E, D> {
         })
     }
 
-    pub fn connection(&mut self, f: impl FnOnce(Connection<E::Dual>))
+    pub fn connection(&mut self, f: impl FnOnce(Connection<R::Dual>))
     where
         D: Default,
     {
         self.connection_with_data(D::default(), f)
     }
 
-    pub fn resume(&mut self, data: D, f: impl FnOnce(Connection<E::Dual>)) {
+    pub fn resume(&mut self, data: D, f: impl FnOnce(Connection<R::Dual>)) {
         self.connection_with_data(data, f)
     }
 
     #[must_use]
-    pub async fn poll(mut self) -> Option<(Self, Transition<C, E, D>)> {
+    pub async fn poll(mut self) -> Option<(Self, Transition<C, R, D>)> {
         drop(self.sender);
         match self.receiver.0.next().await {
             Some((sender, trans)) => {
@@ -151,9 +151,9 @@ impl<C: Session> Proxy<C> {
     }
 }
 
-impl<E: Session> Connection<E> {
+impl<R: Session> Connection<R> {
     #[must_use]
-    pub fn resume(self) -> E {
-        E::fork_sync(|dual| (self.resume)(dual))
+    pub fn resume(self) -> R {
+        R::fork_sync(|dual| (self.resume)(dual))
     }
 }
