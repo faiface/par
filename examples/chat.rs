@@ -5,9 +5,9 @@ use futures::{
 };
 use par::{
     exchange::{Recv, Send},
-    server::{Connection, Server, Transition},
     queue::{Dequeue, Enqueue, Queue},
     runtimes::tokio::fork,
+    server::{Connection, Server, Transition},
     Dual, Session,
 };
 use std::{
@@ -94,7 +94,7 @@ async fn serve(listener: TcpListener) {
                 broadcast(&mut inboxes, ChatLine::Info(format!("{} joined", nick.0)));
                 pool.connection_with_data(nick, |c| conn.send1(c));
             }
-            Transition::Enter {
+            Transition::Resume {
                 session: outbox,
                 data: nick,
             } => match outbox.recv1().await {
@@ -161,14 +161,14 @@ fn handle_user(socket: WebSocketStream<TcpStream>) -> Recv<Option<Login>> {
         };
         let conn = messages
             .fold1(accepted.send(inbox).recv1().await, |conn, content| async {
-                conn.enter()
+                conn.resume()
                     .choose(Command::Message)
                     .send(content)
                     .recv1()
                     .await
             })
             .await;
-        conn.enter().send1(Command::Logout);
+        conn.resume().send1(Command::Logout);
     })
 }
 

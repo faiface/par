@@ -2,13 +2,13 @@ use super::Session;
 use futures::{channel::mpsc, StreamExt};
 use std::collections::HashMap;
 
-pub struct Server<Connect, Enter, ConnectionData = ()>
+pub struct Server<Connect, Resume, ConnectionData = ()>
 where
     Connect: Session,
-    Enter: Session,
+    Resume: Session,
 {
-    sender: Sender<Connect, Enter, usize>,
-    receiver: Receiver<Connect, Enter, usize>,
+    sender: Sender<Connect, Resume, usize>,
+    receiver: Receiver<Connect, Resume, usize>,
     data: HashMap<usize, ConnectionData>,
     next_id: usize,
 }
@@ -20,16 +20,16 @@ impl<C: Session, E: Session, D> Default for Server<C, E, D> {
 }
 
 #[must_use]
-pub enum Transition<Connect, Enter, ConnectionData = ()>
+pub enum Transition<Connect, Resume, ConnectionData = ()>
 where
     Connect: Session,
-    Enter: Session,
+    Resume: Session,
 {
     Connect {
         session: Connect,
     },
-    Enter {
-        session: Enter,
+    Resume {
+        session: Resume,
         data: ConnectionData,
     },
 }
@@ -39,8 +39,8 @@ pub struct Proxy<Connect: Session> {
 }
 
 #[must_use]
-pub struct Connection<Enter: Session> {
-    enter: Box<dyn FnOnce(Enter::Dual) + Send>,
+pub struct Connection<Resume: Session> {
+    resume: Box<dyn FnOnce(Resume::Dual) + Send>,
 }
 
 struct Sender<C: Session, E: Session, D>(mpsc::Sender<Exchange<C, E, D>>);
@@ -97,11 +97,11 @@ impl<C: Session, E: Session, D> Server<C, E, D> {
         self.next_id += 1;
         self.data.insert(id, data);
         f(Connection {
-            enter: Box::new(move |session| {
+            resume: Box::new(move |session| {
                 sender
                     .0
                     .clone()
-                    .try_send((sender, Transition::Enter { session, data: id }))
+                    .try_send((sender, Transition::Resume { session, data: id }))
                     .expect("pool dropped");
             }),
         })
@@ -126,9 +126,9 @@ impl<C: Session, E: Session, D> Server<C, E, D> {
                 self.sender = sender;
                 let trans = match trans {
                     Transition::Connect { session } => Transition::Connect { session },
-                    Transition::Enter { session, data: id } => {
+                    Transition::Resume { session, data: id } => {
                         let data = self.data.remove(&id).expect("missing connection data");
-                        Transition::Enter { session, data }
+                        Transition::Resume { session, data }
                     }
                 };
                 Some((self, trans))
@@ -153,7 +153,7 @@ impl<C: Session> Proxy<C> {
 
 impl<E: Session> Connection<E> {
     #[must_use]
-    pub fn enter(self) -> E {
-        E::fork_sync(|dual| (self.enter)(dual))
+    pub fn resume(self) -> E {
+        E::fork_sync(|dual| (self.resume)(dual))
     }
 }
