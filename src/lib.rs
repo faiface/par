@@ -282,7 +282,7 @@
 //!     fork(|atm: ATM| async move {
 //!         let atm = atm.send(Account(number.clone()));
 //!         let Ok(atm) = atm.recv1().await else {
-//!             return println!("invalid account: {}", number);
+//!             return println!("Invalid account: {}", number);
 //!         };
 //!         let Amount(funds) = atm.choose(Operation::CheckBalance).recv1().await;
 //!         println!("{} has {}", number, funds);
@@ -355,7 +355,7 @@
 //! fn withdraw(number: String, Amount(requested): Amount) -> Client {
 //!     fork(|atm: ATM| async move {
 //!         let Ok(atm) = atm.send(Account(number.clone())).recv1().await else {
-//!             return println!("invalid account: {}", number);
+//!             return println!("Invalid account: {}", number);
 //!         };
 //!         let response = atm
 //!             .choose(Operation::Withdraw)
@@ -373,12 +373,198 @@
 //! }
 //! ```
 //!
+//! # Linking
+//!
+//! In the last example, we defined dual sessions `ATM` and `Client` and implemented two behaviors
+//! for `Client`.
+//!
+//! ```
+//! fn check_balance(number: String) -> Client { /* ... */ }
+//! fn withdraw(number: String, Amount(requested): Amount) -> Client { /* ... */ }
+//! ```
+//!
+//! For a full program, we're missing the `ATM`'s side. We could just take the returned `Client`s
+//! and interact with them directly, but we can also construct an `ATM` separately. Then the question
+//! becomes how to **wire them together.**
+//!
+//! To show that, we first need an `ATM`. For simplicity, we'll be retrieving the accounts from a
+//! `HashMap<String, Money>`, without updating their balances upon withdrawals. Implementing that is
+//! left as a simple optional exercise for the reader.
+//!
+//! Understanding the implementation below is not important for this section. All that's important is
+//! to know the `ATM` looks in the provided `accounts`, and responds depending on the existence of a
+//! requested account and its balance.
+//!
+//! ```
+//! use std::collections::HashMap;
+//! use std::sync::Arc;
+//!
+//! fn boot_atm(accounts: Arc<HashMap<String, Money>>) -> ATM {
+//!     fork(|client: Client| async move {
+//!         let (Account(number), client) = client.recv().await;
+//!         let Some(&Money(funds)) = accounts.get(&number) else {
+//!             return client.send1(Err(InvalidAccount));
+//!         };
+//!         match client.choose(Ok).recv1().await {
+//!             Operation::CheckBalance(client) => client.send1(Amount(funds)),
+//!             Operation::Withdraw(client) => {
+//!                 let (Amount(requested), client) = client.recv().await;
+//!                 if funds >= requested {
+//!                     client.send1(Ok(Money(requested)));
+//!                 } else {
+//!                     client.send1(Err(InsufficientFunds));
+//!                 }
+//!             }
+//!         }
+//!     })
+//! }
+//! ```
+//!
+//! Let's boot the ATM!
+//!
+//! ```
+//! let accounts = Arc::new(HashMap::from([
+//!     ("Alice".to_string(), Money(1000)),
+//!     ("Bob".to_string(), Money(700)),
+//!     ("Cyril".to_string(), Money(5500)),
+//! ]));
+//!
+//! let atm = boot_atm(Arc::clone(&accounts));
+//! ```
+//!
+//! Then start a `Client` session to withdraw some money from Cyril's account.
+//!
+//! ```
+//! let client = withdraw("Cyril".to_string(), Amount(2500));
+//! ```
+//!
+//! The two dual sessions are now up and running. For wiring them together, the [Session] trait
+//! provides a useful method: [`Session::link`]!
+//!
+//! Like [`.send()`](exchange::Send::send), it is **non-blocking** and **non-async**: it tells the
+//! two sessions to talk to each other and immediately proceeds, no `.await` required. Here's what
+//! it looks like:
+//!
+//! ```
+//! use par::Session;
+//!
+//! atm.link(client);
+//! ```
+//!
+//! And the whole program:
+//!
+//! ```
+//! use par::Session;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let accounts = Arc::new(HashMap::from([
+//!         ("Alice".to_string(), Money(1000)),
+//!         ("Bob".to_string(), Money(700)),
+//!         ("Cyril".to_string(), Money(5500)),
+//!     ]));
+//!
+//!     let atm = boot_atm(Arc::clone(&accounts));
+//!     let client = withdraw("Cyril".to_string(), Amount(2500));
+//!
+//!     atm.link(client);
+//!
+//!     // atm and client talk in the background, let them speak
+//!     tokio::time::sleep(Duration::from_secs(1)).await;
+//! }
+//! ```
+//!
+//! **A caveat of non-blocking functions** like [`.send()`](exchange::Send::send) or [`.link()`](Session::link)
+//! is we need to add extra synchronization if we need to wait for the outcome. This usually isn't a concern when
+//! a program is well intertwined -- which it usually is. In this case, though, we need to wait for the two
+//! parties to finish interacting before exiting. We could insert an auxiliary [`Recv`](exchange::Recv), but once
+//! again, for simplicity, we just sleep.
+//!
+//! ```plain
+//! 2500 withdrawn from Cyril
+//! ```
+//!
+//! Linking is like a generalized calling of a function. It can be done on a single line, even if it's a little
+//! verbose in Rust.
+//!
+//! ```
+//! #[tokio::main]
+//! async fn main() {
+//!     let accounts = Arc::new(HashMap::from([
+//!         ("Alice".to_string(), Money(1000)),
+//!         ("Bob".to_string(), Money(700)),
+//!         ("Cyril".to_string(), Money(5500)),
+//!     ]));
+//!
+//!     boot_atm(Arc::clone(&accounts)).link(check_balance("Alice".to_string()));
+//!     boot_atm(Arc::clone(&accounts)).link(withdraw("Bob".to_string(), Amount(1000)));
+//!     boot_atm(Arc::clone(&accounts)).link(withdraw("Dylan".to_string(), Amount(20)));
+//!
+//!     tokio::time::sleep(Duration::from_secs(1)).await;
+//! }
+//! ```
+//!
+//! ```plain
+//! Bob has insufficient funds to withdraw 1000
+//! Alice has 1000
+//! Invalid account: Dylan
+//! ```
+//!
 //! # Recursion
+//!
+//! TODO...
+//!
+//! ```
+//! enum Count {
+//!     More(Recv<i64, Counting>),
+//!     Over(Send<i64>),
+//! }
+//! type Counting = Recv<Count>;
+//! type Counter = Dual<Counting>;
+//!
+//! fn start_counting() -> Counter {
+//!     let mut total = 0;
+//!     fork(|mut count: Counting| async move {
+//!         loop {
+//!             match count.recv1().await {
+//!                 Count::More(more) => {
+//!                     let (add, next_count) = more.recv().await;
+//!                     total += add;
+//!                     count = next_count;
+//!                 }
+//!                 Count::Over(over) => break over.send1(total),
+//!             }
+//!         }
+//!     })
+//! }
+//! ```
+//!
+//! TODO...
+//!
+//! ```
+//! use par::queue::Dequeue;
+//!
+//! type QueueCounting = Dequeue<i64, Send<i64>>;
+//! type QueueCounter = Dual<QueueCounting>;
+//!
+//! fn start_counting_with_queue() -> QueueCounter {
+//!     fork(|numbers: QueueCounting| async {
+//!         let (total, over) = numbers
+//!             .fold(0, |total, add| async move { total + add })
+//!             .await;
+//!         over.send1(total);
+//!     })
+//! }
+//! ```
+//!
+//! TODO...
+//!
+//!
 
 pub mod exchange;
-pub mod server;
 pub mod queue;
 pub mod runtimes;
+pub mod server;
 
 pub trait Session: Send + 'static {
     type Dual: Session<Dual = Self>;
