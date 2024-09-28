@@ -7,7 +7,7 @@ description = "Session types, as an implementation of linear logic with MIX"
 repository = "https://github.com/faiface/par"
 
 [features]
-default = []
+default = ["examples"]
 runtime-tokio = ["tokio"]
 examples = ["runtime-tokio", "fastrand", "tokio-tungstenite"]
 
