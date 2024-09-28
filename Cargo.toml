@@ -2,6 +2,9 @@
 name = "par"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Session types, as an implementation of linear logic with MIX"
+repository = "https://github.com/faiface/par"
 
 [dependencies]
 fastrand = "2.1.1"
