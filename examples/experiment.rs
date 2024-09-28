@@ -83,24 +83,22 @@ fn withdraw(number: String, Amount(requested): Amount) -> Client {
 
 // COUNTING
 
-enum Count {
-    More(Recv<i64, Counting>),
-    Over(Send<i64>),
+enum Counting {
+    More(Recv<i64, Recv<Counting>>),
+    Done(Send<i64>),
 }
-type Counting = Recv<Count>;
-type Counter = Dual<Counting>;
 
-fn start_counting() -> Counter {
-    let mut total = 0;
-    fork(|mut count: Counting| async move {
+fn start_counting() -> Send<Counting> {
+    fork(|mut numbers: Recv<Counting>| async {
+        let mut total = 0;
         loop {
-            match count.recv1().await {
-                Count::More(more) => {
-                    let (add, next_count) = more.recv().await;
-                    total += add;
-                    count = next_count;
+            match numbers.recv1().await {
+                Counting::More(number) => {
+                    let (n, next) = number.recv().await;
+                    total += n;
+                    numbers = next;
                 }
-                Count::Over(over) => break over.send1(total),
+                Counting::Done(report) => break report.send1(total),
             }
         }
     })
@@ -108,15 +106,15 @@ fn start_counting() -> Counter {
 
 // QUEUE COUNTING
 
-type QueueCounting = Dequeue<i64, Send<i64>>;
-type QueueCounter = Dual<QueueCounting>;
+type Numbers = Dequeue<i64, Send<i64>>;
+type Counter = Dual<Numbers>;
 
-fn start_counting_with_queue() -> QueueCounter {
-    fork(|numbers: QueueCounting| async {
-        let (total, over) = numbers
+fn start_counting_with_queue() -> Counter {
+    fork(|numbers: Numbers| async {
+        let (total, report) = numbers
             .fold(0, |total, add| async move { total + add })
             .await;
-        over.send1(total);
+        report.send1(total);
     })
 }
 
@@ -208,31 +206,32 @@ fn random_player(name: &'static str) -> Player {
 
 #[tokio::main]
 async fn main() {
-    let accounts = Arc::new(HashMap::from([
+    /*let accounts = Arc::new(HashMap::from([
         ("Alice".to_string(), Money(1000)),
         ("Bob".to_string(), Money(700)),
         ("Cyril".to_string(), Money(5500)),
-    ]));
+    ]));*/
 
     /*let atm = boot_atm(Arc::clone(&accounts));
     let client = withdraw("Cyril".to_string(), Amount(2500));
 
     atm.link(client);*/
 
-    boot_atm(Arc::clone(&accounts)).link(check_balance("Alice".to_string()));
+    /*boot_atm(Arc::clone(&accounts)).link(check_balance("Alice".to_string()));
     boot_atm(Arc::clone(&accounts)).link(withdraw("Bob".to_string(), Amount(1000)));
     boot_atm(Arc::clone(&accounts)).link(withdraw("Dylan".to_string(), Amount(20)));
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;*/
 
-    /*let sum = start_counting()
-        .choose(Count::More).send(1)
-        .choose(Count::More).send(2)
-        .choose(Count::More).send(3)
-        .choose(Count::More).send(4)
-        .choose(Count::More).send(5)
-        .choose(Count::Over).recv1().await;
+    let sum = start_counting()
+        .choose(Counting::More).send(1)
+        .choose(Counting::More).send(2)
+        .choose(Counting::More).send(3)
+        .choose(Counting::More).send(4)
+        .choose(Counting::More).send(5)
+        .choose(Counting::Done).recv1().await;
 
+    assert_eq!(sum, 15);
     println!("{}", sum);
 
     let sum = start_counting_with_queue()
@@ -245,7 +244,8 @@ async fn main() {
         .recv1()
         .await;
 
-    println!("{}", sum);*/
+    assert_eq!(sum, 15);
+    println!("{}", sum);
 
     /*for _ in 0..50 {
         let alice = random_player("Alice");

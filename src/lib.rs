@@ -512,52 +512,130 @@
 //!
 //! # Recursion
 //!
-//! TODO...
+//! In the realm of algebraic types, the basic building blocks of products and sums (`struct`s and `enum`s
+//! in Rust) **explode** into lists, maps, stacks, queues, and all kinds of other powerful data structures --
+//! **via recursion.** The same happens in the realm of session types: the basic building blocks of **sequencing
+//! and branching** make processing pipelines, worker pools, servers, game rule protocols, and so much more, when
+//! combined recursively.
+//!
+//! Now that we've covered those basic building blocks, let's take a look at how to create recursive session
+//! types to define complex and intricate communication protocols.
+//! 
+//! To start, we'll stay with two-party protocols, but in the next section, we'll also demonstrate how to
+//! construct sessions intertwining **more than two parties** (/ agents / processes / threads).
+//!
+//! **One of the most common tasks** that involve repeating something an unknown number of times is **processing
+//! a stream of incoming data.** The [queue] module implements dedicated session types for this purpose. Before
+//! taking a look at it, though, we'll implement such a protocol manually, to see how it's done.
+//!
+//! **The task is:** There is an incoming stream of integers. Add them all up and report the total sum back.
+//!
+//! A recursive session protocol is exactly what we need to accomplish this. First it needs to branch on
+//!
+//! 1. **receiving a number to add**, or
+//! 2. **finishing and reporting the total**.
+//!
+//! Then, in the first case, it needs to go back and repeat, until eventually reaching the second case.
+//!
+//! Native recursion on types in Rust is all we need:
 //!
 //! ```
-//! enum Count {
-//!     More(Recv<i64, Counting>),
-//!     Over(Send<i64>),
+//! enum Counting {
+//!     More(Recv<i64, Recv<Counting>>),
+//!     Done(Send<i64>),
 //! }
-//! type Counting = Recv<Count>;
-//! type Counter = Dual<Counting>;
+//! ```
 //!
-//! fn start_counting() -> Counter {
-//!     let mut total = 0;
-//!     fork(|mut count: Counting| async move {
+//! The `enum` defines two variants. On `Counting::More`, the counter receives a number and continues
+//! recursively. On `Counting::Done`, it's required to send a number back: the total.
+//!
+//! A couple of things to note:
+//! - `Counting` itself is not a session type, just an `enum`. The two sides of the session will be
+//!   using `Recv<Counting>` (from the counter's point of view) and `Send<Counting>`. In more complicated
+//!   use-cases, it's recommended to set type aliases for the respective `Recv<...>` and `Send<...>` sides.
+//! - No `Box` or `Arc` is required at the recursion point, `Counting` is [`Sized`]. That's because the
+//!   memory indirection needed for recursive types is already taken care of by the channels used in
+//!   [`Recv`](exchange::Recv)/[`Send`](exchange::Send).
+//!
+//! While the session type is recursive, its implementation doesn't have to be! In fact, we'll implement
+//! the counter using a loop and re-assigning:
+//!
+//! ```
+//! fn start_counting() -> Send<Counting> {
+//!     fork(|mut numbers: Recv<Counting>| async {
+//!         let mut total = 0;
 //!         loop {
-//!             match count.recv1().await {
-//!                 Count::More(more) => {
-//!                     let (add, next_count) = more.recv().await;
-//!                     total += add;
-//!                     count = next_count;
+//!             match numbers.recv1().await {
+//!                 Counting::More(number) => {
+//!                     let (n, next) = number.recv().await;
+//!                     total += n;
+//!                     numbers = next;
 //!                 }
-//!                 Count::Over(over) => break over.send1(total),
+//!                 Counting::Done(report) => break report.send1(total),
 //!             }
 //!         }
 //!     })
 //! }
 //! ```
 //!
-//! TODO...
+//! The counter's end-point of the session (`numbers`) is marked `mut`. In the case of `Counting::More`, after
+//! receiving the `n` to add and the `next` continuation of the session, we simply re-assign `next` into `numbers`.
+//! Note, that before the re-assignment, `numbers` has been moved-out-of in `numbers.recv1().await` -- no dropping
+//! of a session happens.
+//!
+//! Here's how we can use the constructed counter to add up numbers between 1 and 5:
 //!
 //! ```
-//! use par::queue::Dequeue;
+//! let sum = start_counting()
+//!     .choose(Counting::More).send(1)
+//!     .choose(Counting::More).send(2)
+//!     .choose(Counting::More).send(3)
+//!     .choose(Counting::More).send(4)
+//!     .choose(Counting::More).send(5)
+//!     .choose(Counting::Done).recv1().await;
+//! 
+//! assert_eq!(sum, 15);
+//! ```
 //!
-//! type QueueCounting = Dequeue<i64, Send<i64>>;
-//! type QueueCounter = Dual<QueueCounting>;
+//! The pattern of processing an incoming stream of data is **ubiquitous enough to warrant standardization.** That's
+//! what the [queue] module is. Check out its documentation for more detail! It provides two ends of a stream
+//! processing queue -- [`Dequeue`](queue::Dequeue) and [`Enqueue`](queue::Enqueue) -- corresponding to the
+//! `Recv<Counting>` and `Send<Counting>`, respectively. Instead of `Counting::More` and `Counting::Done`, we can use
+//! [`Enqueue::push`](queue::Enqueue::push) and [`Enqueue::close`](queue::Enqueue::close). On the processing side,
+//! [`Dequeue::pop`](queue::Dequeue::pop), [`Dequeue::for_each`](queue::Dequeue::for_each), and
+//! [`Dequeue::fold`](queue::Dequeue::fold) are provided for ergonomic use.
 //!
-//! fn start_counting_with_queue() -> QueueCounter {
-//!     fork(|numbers: QueueCounting| async {
-//!         let (total, over) = numbers
+//! Without further explanation, the counter can be rewritten this way:
+//!
+//! ```
+//! type Numbers = Dequeue<i64, Send<i64>>;
+//! type Counter = Dual<Numbers>;  // Enqueue<i64, Recv<i64>>
+//! 
+//! fn start_counting_with_queue() -> Counter {
+//!     fork(|numbers: Numbers| async {
+//!         let (total, report) = numbers
 //!             .fold(0, |total, add| async move { total + add })
 //!             .await;
-//!         over.send1(total);
+//!         report.send1(total);
 //!     })
 //! }
 //! ```
 //!
-//! TODO...
+//! And used elegantly:
+//! 
+//! ```
+//! let sum = start_counting_with_queue()
+//!     .push(1)
+//!     .push(2)
+//!     .push(3)
+//!     .push(4)
+//!     .push(5)
+//!     .close()
+//!     .recv1()
+//!     .await;
+//! 
+//! assert_eq!(sum, 15);
+//! ```
 //!
 //! # Multiple participants
 //!
