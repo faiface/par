@@ -1,3 +1,4 @@
+#![cfg(feature = "examples")]
 #![allow(dead_code)]
 
 use par::exchange::{Recv, Send};

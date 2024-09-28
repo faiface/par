@@ -1,3 +1,4 @@
+#[cfg(feature = "runtime-tokio")]
 pub mod tokio {
     use crate::Session;
     use futures::Future;
