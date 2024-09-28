@@ -559,7 +559,76 @@
 //!
 //! TODO...
 //!
+//! # Multiple participants
 //!
+//! TODO...
+//!
+//! ```
+//! #[derive(Debug)]
+//! enum Move {
+//!     Up,
+//!     Down,
+//! }
+//! type Game = Send<Move, Recv<Outcome>>;
+//! enum Outcome {
+//!     Win,
+//!     Loss,
+//!     Draw(Game),
+//! }
+//! 
+//! type Player = Dual<Game>;
+//! 
+//! #[derive(Debug)]
+//! enum Winner {
+//!     First,
+//!     Second,
+//!     Third,
+//! }
+//! type Judge = Send<(Player, Player, Player), Recv<Winner>>;
+//! type Players = Dual<Judge>;
+//! 
+//! fn start_playing() -> Judge {
+//!     use Move::*;
+//!     use Outcome::*;
+//!     use Winner::*;
+//! 
+//!     fork(|players: Players| async {
+//!         let ((mut player1, mut player2, mut player3), winner) = players.recv().await;
+//! 
+//!         loop {
+//!             let (move1, outcome1) = player1.recv().await;
+//!             let (move2, outcome2) = player2.recv().await;
+//!             let (move3, outcome3) = player3.recv().await;
+//! 
+//!             match (move1, move2, move3) {
+//!                 (Up, Down, Down) | (Down, Up, Up) => {
+//!                     outcome1.send1(Win);
+//!                     outcome2.send1(Loss);
+//!                     outcome3.send1(Loss);
+//!                     break winner.send1(First);
+//!                 }
+//!                 (Down, Up, Down) | (Up, Down, Up) => {
+//!                     outcome1.send1(Loss);
+//!                     outcome2.send1(Win);
+//!                     outcome3.send1(Loss);
+//!                     break winner.send1(Second);
+//!                 }
+//!                 (Down, Down, Up) | (Up, Up, Down) => {
+//!                     outcome1.send1(Loss);
+//!                     outcome2.send1(Loss);
+//!                     outcome3.send1(Win);
+//!                     break winner.send1(Third);
+//!                 }
+//!                 (Up, Up, Up) | (Down, Down, Down) => {
+//!                     player1 = outcome1.choose(Draw);
+//!                     player2 = outcome2.choose(Draw);
+//!                     player3 = outcome3.choose(Draw);
+//!                 }
+//!             }
+//!         }
+//!     })
+//! }
+//! ```
 
 pub mod exchange;
 pub mod queue;
