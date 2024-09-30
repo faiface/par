@@ -1,5 +1,3 @@
-#![cfg(feature = "examples")]
-
 use futures::{
     future,
     stream::{SplitSink, SplitStream},
