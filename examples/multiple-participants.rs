@@ -41,6 +41,10 @@ fn start_playing() -> Judge {
             let (move2, outcome2) = player2.recv().await;
             let (move3, outcome3) = player3.recv().await;
 
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            println!("{:?} {:?} {:?}", move1, move2, move3);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
             match (move1, move2, move3) {
                 (Up, Down, Down) | (Down, Up, Up) => {
                     outcome1.send1(Win);
@@ -64,43 +68,36 @@ fn start_playing() -> Judge {
                     player1 = outcome1.choose(Draw);
                     player2 = outcome2.choose(Draw);
                     player3 = outcome3.choose(Draw);
+                    println!("Draw...");
                 }
             }
         }
     })
 }
 
-fn random_player(name: &'static str) -> Player {
+fn random_player() -> Player {
     fork(|mut game: Game| async move {
-        loop {
-            let my_move = if fastrand::bool() {
-                Move::Up
-            } else {
-                Move::Down
-            };
-
-            println!("{} is playing {:?}", name, my_move);
-            tokio::time::sleep(Duration::from_secs(1)).await;
-
-            match game.send(my_move).recv1().await {
-                Outcome::Win => break println!("{} won!", name),
-                Outcome::Loss => break,
-                Outcome::Draw(next) => game = next,
-            }
+        while let Outcome::Draw(next_round) = game.send(random_move()).recv1().await {
+            game = next_round;
         }
     })
+}
+
+fn random_move() -> Move {
+    if fastrand::bool() {
+        Move::Up
+    } else {
+        Move::Down
+    }
 }
 
 #[tokio::main]
 async fn main() {
     for _ in 0..10 {
-        let alice = random_player("Alice");
-        let bob = random_player("Bob");
-        let cyril = random_player("Cyril");
-
-        start_playing().send((alice, bob, cyril)).recv1().await;
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        println!();
+        let winner = start_playing()
+            .send((random_player(), random_player(), random_player()))
+            .recv1()
+            .await;
+        println!("{:?}!\n", winner);
     }
 }
