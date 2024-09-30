@@ -14,11 +14,11 @@ enum Move {
 enum Outcome {
     Win,
     Loss,
-    Draw(Game),
+    Draw(Round),
 }
 
-type Game = Send<Move, Recv<Outcome>>;
-type Player = Dual<Game>; // Recv<Move, Send<Outcome>>
+type Round = Send<Move, Recv<Outcome>>;
+type Player = Dual<Round>; // Recv<Move, Send<Outcome>>
 
 #[derive(Debug)]
 enum Winner {
@@ -27,14 +27,13 @@ enum Winner {
     Third,
 }
 
-type Judge = Send<(Player, Player, Player), Recv<Winner>>;
-type Players = Dual<Judge>; // Recv<(Player, Player, Player), Send<Winner>>
+type Game = Send<(Player, Player, Player), Recv<Winner>>;
 
-fn start_playing() -> Judge {
+fn start_playing() -> Game {
     use {Move::*, Outcome::*, Winner::*};
 
-    fork(|players: Players| async {
-        let ((mut player1, mut player2, mut player3), winner) = players.recv().await;
+    fork(|game: Dual<Game>| async {
+        let ((mut player1, mut player2, mut player3), winner) = game.recv().await;
 
         loop {
             let (move1, outcome1) = player1.recv().await;
@@ -76,9 +75,9 @@ fn start_playing() -> Judge {
 }
 
 fn random_player() -> Player {
-    fork(|mut game: Game| async move {
-        while let Outcome::Draw(next_round) = game.send(random_move()).recv1().await {
-            game = next_round;
+    fork(|mut round: Round| async move {
+        while let Outcome::Draw(next_round) = round.send(random_move()).recv1().await {
+            round = next_round;
         }
     })
 }

@@ -520,7 +520,7 @@
 //!
 //! Now that we've covered those basic building blocks, let's take a look at how to create recursive session
 //! types to define complex and intricate communication protocols.
-//! 
+//!
 //! To start, we'll stay with two-party protocols, but in the next section, we'll also demonstrate how to
 //! construct sessions intertwining **more than two parties** (/ agents / processes / threads).
 //!
@@ -593,7 +593,7 @@
 //!     .choose(Counting::More).send(4)
 //!     .choose(Counting::More).send(5)
 //!     .choose(Counting::Done).recv1().await;
-//! 
+//!
 //! assert_eq!(sum, 15);
 //! ```
 //!
@@ -610,7 +610,7 @@
 //! ```
 //! type Numbers = Dequeue<i64, Send<i64>>;
 //! type Counter = Dual<Numbers>;  // Enqueue<i64, Recv<i64>>
-//! 
+//!
 //! fn start_counting_with_queue() -> Counter {
 //!     fork(|numbers: Numbers| async {
 //!         let (total, report) = numbers
@@ -622,7 +622,7 @@
 //! ```
 //!
 //! And used elegantly:
-//! 
+//!
 //! ```
 //! let sum = start_counting_with_queue()
 //!     .push(1)
@@ -633,13 +633,45 @@
 //!     .close()
 //!     .recv1()
 //!     .await;
-//! 
+//!
 //! assert_eq!(sum, 15);
 //! ```
 //!
 //! # Multiple participants
 //!
-//! TODO...
+//! All session types described so far had two sides to them: an ATM versus a single client; a calculator, or
+//! a counter versus a single user. That's rarely sufficient for reasonable applications. A server will handle
+//! multiple clients, a game will have multiple players interacting in its world.
+//!
+//! Those familiar with literature will know that our session types here are _binary_. They fundamentally
+//! have two sides of communication. The other side is always described by the dual. Research in session types
+//! goes on to introduce _multi-party session types_ that explicitly model communication of more than two
+//! sides. While they have their advantages, they also introduce complexity and (_disclaimer: personal impression_)
+//! don't seem to be ready for practical use.
+//!
+//! What we are going to show here, however, is that **no dedicated multi-party session types are needed** to
+//! model and implement protocols involving arbitrary numbers of participants. And that is **without any concessions
+//! to previously described guarantees** like protocol adherence and deadlock freedom.
+//!
+//! The key lies in _how_ to **juggle multiple session end-points concurrently.**
+//! 
+//! **To demonstrate,** we'll implement a very simple game of 3 players. For a general pattern of uniformly
+//! handling a dynamic number of participants, check out the [server] module.
+//!
+//! The rules of the game are:
+//!
+//! 1. Each player independently picks one of two moves: _up_ or _down_.
+//! 2. If everybody chooses the same move, it's a draw and the game repeats.
+//! 3. Otherwise, one player must have chosen differently from the other two: that player wins!
+//!
+//! In other words, the choices on the left map to the outcomes on the right:
+//!
+//! - _**UP**, DOWN, DOWN_, or _**DOWN**, UP, UP_ -- **first** player wins.
+//! - _DOWN, **UP**, DOWN_, or _UP, **DOWN**, UP_ -- **second** player wins.
+//! - _DOWN, DOWN, **UP**_, or _UP, UP, **DOWN**_ -- **third** player wins.
+//! - _UP, UP, UP_, or _DOWN, DOWN, DOWN_ -- **draw.**
+//!
+//! Let's model the game!
 //!
 //! ```
 //! #[derive(Debug)]
@@ -647,36 +679,55 @@
 //!     Up,
 //!     Down,
 //! }
-//! type Game = Send<Move, Recv<Outcome>>;
+//! 
 //! enum Outcome {
 //!     Win,
 //!     Loss,
-//!     Draw(Game),
+//!     Draw(Round),
 //! }
 //! 
-//! type Player = Dual<Game>;
-//! 
+//! type Round = Send<Move, Recv<Outcome>>;
+//! type Player = Dual<Round>; // Recv<Move, Send<Outcome>>
+//! ```
+//!
+//! The `Round` session is what the player sees. They are expected to send their move, then wait for an outcome
+//! of the round. Two outcomes are trivial: `Win` and `Loss`. The third one, `Draw`, recursively enters the next
+//! round, since no winner could be decided.
+//!
+//! The full game involves three players entering the game and playing according to the above protocol until
+//! one of them wins.
+//!
+//! ```
 //! #[derive(Debug)]
 //! enum Winner {
 //!     First,
 //!     Second,
 //!     Third,
 //! }
-//! type Judge = Send<(Player, Player, Player), Recv<Winner>>;
-//! type Players = Dual<Judge>;
 //! 
-//! fn start_playing() -> Judge {
-//!     use Move::*;
-//!     use Outcome::*;
-//!     use Winner::*;
+//! type Game = Send<(Player, Player, Player), Recv<Winner>>;
+//! ```
+//!
+//! We model it as a session that takes in three (running) `Player`s, and reports the winner back. In between
+//! those, an implementation of `Game` must take care of the three `Player` sessions by making them play.
+//!
+//! Here's what we can do:
+//!
+//! ```
+//! fn start_playing() -> Game {
+//!     use {Move::*, Outcome::*, Winner::*};
 //! 
-//!     fork(|players: Players| async {
-//!         let ((mut player1, mut player2, mut player3), winner) = players.recv().await;
+//!     fork(|game: Dual<Game>| async {
+//!         let ((mut player1, mut player2, mut player3), winner) = game.recv().await;
 //! 
 //!         loop {
 //!             let (move1, outcome1) = player1.recv().await;
 //!             let (move2, outcome2) = player2.recv().await;
 //!             let (move3, outcome3) = player3.recv().await;
+//! 
+//!             tokio::time::sleep(Duration::from_secs(1)).await;
+//!             println!("{:?} {:?} {:?}", move1, move2, move3);
+//!             tokio::time::sleep(Duration::from_secs(1)).await;
 //! 
 //!             match (move1, move2, move3) {
 //!                 (Up, Down, Down) | (Down, Up, Up) => {
@@ -701,11 +752,80 @@
 //!                     player1 = outcome1.choose(Draw);
 //!                     player2 = outcome2.choose(Draw);
 //!                     player3 = outcome3.choose(Draw);
+//!                     println!("Draw...");
 //!                 }
 //!             }
 //!         }
 //!     })
 //! }
+//! ```
+//!
+//! Let's break it down!
+//!
+//! At first, we take in the three `Player` session.
+//!
+//! ```
+//! let ((mut player1, mut player2, mut player3), winner) = game.recv().await;
+//! ```
+//!
+//! **All three of them are now in scope** at the same time. This is the key to handling multiple
+//! participants. Having access to all, the `Game` can **coordinate** them according to one another. In this
+//! context it's only to decide the outcome and proceed with the game -- in other contexts, more complicated
+//! mutual interactions can be implemented.
+//!
+//! The rest of the code is concerned with deciding the outcome and communicating it.
+//!
+//! - **In the case of a winner,** the `Player` sessions are terminated by either a `Win` or a `Loss`, and the
+//! _pending_ `winner` response is _completed_.
+//!
+//! - **Otherwise in the case of a draw,** the `winner` channel is _left pending_, and draws are communicated to
+//! the players, which makes them stay to play another round according to the `Round` protocol.
+//!
+//! **Let's have some fun playing!**
+//!
+//! ```
+//! fn random_player() -> Player {
+//!     fork(|mut round: Round| async move {
+//!         while let Outcome::Draw(next_round) = round.send(random_move()).recv1().await {
+//!             round = next_round;
+//!         }
+//!     })
+//! }
+//! 
+//! fn random_move() -> Move {
+//!     if fastrand::bool() {
+//!         Move::Up
+//!     } else {
+//!         Move::Down
+//!     }
+//! }
+//! 
+//! #[tokio::main]
+//! async fn main() {
+//!     for _ in 0..10 {
+//!         let winner = start_playing()
+//!             .send((random_player(), random_player(), random_player()))
+//!             .recv1()
+//!             .await;
+//!         println!("{:?}!\n", winner);
+//!     }
+//! }
+//! ```
+//!
+//! ```plain
+//! Up Up Down
+//! Third!
+//! 
+//! Down Up Up
+//! First!
+//! 
+//! Down Down Down
+//! Draw...
+//! Up Down Up
+//! Second!
+//! 
+//! Down Up Down
+//! Second!
 //! ```
 
 pub mod exchange;
