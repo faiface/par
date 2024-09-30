@@ -12,7 +12,8 @@
 //! and analysis. Concurrency inherently multiplies the number of ways programs can
 //! behave. Session types can provide guidance in designing such systems, by enforcing
 //! that programs handle all possibilities. Situations unaccounted for in a protocol
-//! described by a session type will be discovered when trying to implement it.*
+//! described by a session type will be discovered when trying to implement it.
+//! This is achieved by the same principles as those applied to Rust's error handling.
 //!
 //! Lastly, session types give names to concurrent concepts and patterns, which
 //! enables high levels of abstraction and composability. That makes it easier to
@@ -21,8 +22,6 @@
 //! The particular flavor of session types presented here is a full implementation
 //! of propositional linear logic. However, no knowledge of linear logic is required to use
 //! or understand this library.
-//!
-//! *_This is achieved by the same principles as those applied to Rust's error handling._
 //!
 //! # Forking
 //!
@@ -85,6 +84,8 @@
 //! sender.send1(7);
 //! ```
 //!
+//! **Important notice:** Session end-points **must not be dropped.** (TODO: explain...)
+//!
 //! Now we will take a look at three basic ways to compose sessions:
 //! **sequencing**, **branching**, and **recursion**. These, together with
 //! [Recv](exchange::Recv) and [Send](exchange::Send), are enough to construct
@@ -103,7 +104,7 @@
 //! ```
 //!
 //! The unit type `()` implements [Session] and represents an empty, finished session.
-//! It's self-dual, its dual is `()`.*
+//! It's self-dual, its dual is `()`.
 //!
 //! We can choose different continuations to make sequential sessions. For example:
 //!
@@ -168,34 +169,24 @@
 //!
 //! We use four different methods to communicate in the session:
 //!
-//! - For [Recv](exchange::Recv) it's [.recv()](exchange::Recv::recv) and
-//!   [.recv1()](exchange::Recv::recv1), which need to be `.await`-ed.
-//! - For [Send](exchange::Send) it's [.send()](exchange::Send::send) and
-//!   [.send1()](exchange::Send::send1), which are not `async`.
+//! - For [Recv](exchange::Recv) it's [`recv`](exchange::Recv::recv) and
+//!   [`recv1`](exchange::Recv::recv1), which need to be `.await`-ed.
+//! - For [Send](exchange::Send) it's [`send`](exchange::Send::send) and
+//!   [`send1`](exchange::Send::send1), which are not `async`.
 //!
-//! The difference between [.recv()](exchange::Recv::recv) and
-//! [.recv1()](exchange::Recv::recv1), and between [.send()](exchange::Send::send)
-//! and [.send1()](exchange::Send::send1) is about the continuation.
-//! The versions ending with 1, [.recv1()](exchange::Recv::recv1) and
-//! [.send1()](exchange::Send::send1), can only be used if the continuation is `()`.
-//! Unlike their general versions, [.recv()](exchange::Recv::recv) and
-//! [.send()](exchange::Send::send), they don't return a continuation, and are
+//! The difference between [`recv`](exchange::Recv::recv) and
+//! [`recv1`](exchange::Recv::recv1), and between [`send`](exchange::Send::send)
+//! and [`send1`](exchange::Send::send1) is about the continuation.
+//! The versions ending with 1, [`recv1`](exchange::Recv::recv1) and
+//! [`send1`](exchange::Send::send1), can only be used if the continuation is `()`.
+//! Unlike their general versions, [`recv`](exchange::Recv::recv) and
+//! [`send`](exchange::Send::send), they don't return a continuation, and are
 //! not marked as `#[must_use]`.**
 //!
-//! The general [.recv()](exchange::Recv::recv) and [.send()](exchange::Send::send)
-//! can always be used instead of [.recv1()](exchange::Recv::recv1) and
-//! [.send1()](exchange::Send::send1), but then we have to deal with the returned
+//! The general [`recv`](exchange::Recv::recv) and [`send`](exchange::Send::send)
+//! can always be used instead of [`recv1`](exchange::Recv::recv1) and
+//! [`send1`](exchange::Send::send1), but then we have to deal with the returned
 //! `()`. The difference is just about convenience.
-//!
-//! *_In the standard presentation of linear logic, the unit type **1** is not self-dual,
-//! **1<sup>⊥</sup> = ⊥**. However, it becomes self-dual if we include the so-called MIX
-//! rule, which states that **A ⊗ B** can be converted to **A ⅋ B**. This doesn't do any harm
-//! to the logic (it just enables disconnected processes), and makes it easier to
-//! program with._
-//!
-//! **_The methods returning a continuation, [.recv()](exchange::Recv::recv) and
-//! [.send()](exchange::Send::send), are marked as `#[must_use]` because sessions
-//! must not be dropped._
 //!
 //! # Branching
 //!
@@ -266,11 +257,11 @@
 //! type Client = Dual<ATM>;  // Recv<Account, Send<Result<Send<Operation>, InvalidAccount>>>
 //! ```
 //!
-//! ## [`Send::choose`](exchange::Send::choose)
+//! ## Picking a choice with [`Send::choose`](exchange::Send::choose)
 //!
 //! Being able to model a session by freely using custom (`Operation`) or standard ([`Result`]) enums
 //! is certainly expressive, but how ergonomic is it to use? Turns out it can be quite ergonomic thanks to
-//! the [`.choose()`](exchange::Send::choose) method on [`Send`](exchange::Send).
+//! the [`choose`](exchange::Send::choose) method on [`Send`](exchange::Send).
 //!
 //! Let's implement a client that checks the balance on their account. Here's a function that, given an
 //! account number, starts a `Client` session which does exactly that:
@@ -297,11 +288,22 @@
 //! let Amount(funds) = atm.choose(Operation::CheckBalance).recv1().await;
 //! ```
 //!
-//! At this point, the type of `atm` is `Send<Operation>`. But instead of calling [`.send1()`](exchange::Send::send1),
-//! we [choose](exchange::Send::choose) `Operation::CheckBalance`, then receive the answer from the ATM. What is
-//! going on?
+//! At this point, the type of `atm` is `Send<Operation>`. But instead of calling [`send1`](exchange::Send::send1),
+//! we [choose](exchange::Send::choose) `Operation::CheckBalance`.
 //!
-//! Without using [`.choose()`](exchange::Send::choose), there are two ways to accomplish the same.
+//! Recall that the payload of `Operation::CheckBalance` is `Send<Amount>`. [`Send::choose`](exchange::Send::choose)
+//! returns the **dual of that payload!**
+//!
+//! ```
+//! atm.choose(Operation::CheckBalance) // -> Recv<Amount>
+//!     .recv1().await;
+//! ```
+//!
+//! That's why we can simply receive the response from the ATM afterwards.
+//! 
+//! **What's going on?**
+//!
+//! There are two manual ways to accomplish what [`choose`](exchange::Send::choose) does.
 //!
 //! 1. The **inside** way:
 //!
@@ -336,7 +338,7 @@
 //! avoiding nesting is beneficial enough to warrant (validly) the whole async/await paradigm
 //! (replacing nested callbacks), the **outside** way is superior.
 //!
-//! In short, all [`.choose()`](exchange::Send::choose) does is codify this outside form into a method.
+//! In short, all [`choose`](exchange::Send::choose) does is codify this outside form into a method.
 //! With any `Enum` and its `Enum::Variant`,
 //!
 //! ```
@@ -441,7 +443,7 @@
 //! The two dual sessions are now up and running. For wiring them together, the [Session] trait
 //! provides a useful method: [`Session::link`]!
 //!
-//! Like [`.send()`](exchange::Send::send), it is **non-blocking** and **non-async**: it tells the
+//! Like [`send`](exchange::Send::send), it is **non-blocking** and **non-async**: it tells the
 //! two sessions to talk to each other and immediately proceeds, no `.await` required. Here's what
 //! it looks like:
 //!
@@ -474,7 +476,7 @@
 //! }
 //! ```
 //!
-//! **A caveat of non-blocking functions** like [`.send()`](exchange::Send::send) or [`.link()`](Session::link)
+//! **A caveat of non-blocking functions** like [`send`](exchange::Send::send) or [`link`](Session::link)
 //! is we need to add extra synchronization if we need to wait for the outcome. This usually isn't a concern when
 //! a program is well intertwined -- which it usually is. In this case, though, we need to wait for the two
 //! parties to finish interacting before exiting. We could insert an auxiliary [`Recv`](exchange::Recv), but once
