@@ -1,8 +1,6 @@
-//! Sessions that exchange a single value (possibly another session), then proceed according to
+//! Exchange a single value (possibly another session), then proceed according to
 //! a continuation session. The two sides, receiving and sending, are [`Recv`] and [`Send`],
 //! respectively.
-//!
-//! ## Blocking and `.await`
 //!
 //! Sending is always non-blocking. Only receiving needs to block (asynchronously) until
 //! a value is supplied by the other side. It's possible to perform multiple sends without waiting
@@ -25,8 +23,7 @@ use super::Session;
 use futures::channel::oneshot;
 use std::marker;
 
-/// A session that supplies a value of type `T`, then proceeds according to `S`. Its dual
-/// is [`Send<T, Dual<S>>`].
+/// Supplies a value of type `T`, then proceeds according to `S`. Its dual is [`Send<T, Dual<S>>`].
 ///
 /// Use [`recv`](Self::recv) to obtain the supplied value along with the continuation `S`.
 /// If the continuation is `()` (the empty session), use [`recv1`](Self::recv1) to obtain `T`
@@ -41,8 +38,7 @@ pub struct Recv<T, S: Session = ()> {
     rx: oneshot::Receiver<Exchange<T, S>>,
 }
 
-/// A session that consumes a value of type `T`, then proceeds according to `S`. Its dual
-/// is [`Recv<T, Dual<S>>`].
+/// Consumes a value of type `T`, then proceeds according to `S`. Its dual is [`Recv<T, Dual<S>>`].
 ///
 /// Use [`send`](Self::send) to supply the requested value and obtain the continuation `S`.
 /// If the continuation is `()` (the empty session), use [`send1`](Self::send1) to discard the
@@ -124,7 +120,7 @@ impl<T, S: Session> Recv<T, S>
 where
     T: marker::Send + 'static,
 {
-    /// Wait to obtain a value of type `T` along with the continuation `S`.
+    /// Waits to obtain a value of type `T` along with the continuation `S`.
     #[must_use]
     pub async fn recv(mut self) -> (T, S) {
         loop {
@@ -140,7 +136,7 @@ impl<T> Recv<T, ()>
 where
     T: marker::Send + 'static,
 {
-    /// Wait to obtain a value of type `T`, and discard the empty continuation.
+    /// Waits to obtain a value of type `T`, and discards the empty continuation.
     pub async fn recv1(self) -> T {
         self.recv().await.0
     }
@@ -150,7 +146,7 @@ impl<T, S: Session> Send<T, S>
 where
     T: marker::Send + 'static,
 {
-    /// Supply a value of type `T` and obtain the continuation `S`.
+    /// Supplies a value of type `T` and obtains the continuation `S`.
     #[must_use]
     pub fn send(self, value: T) -> S {
         S::fork_sync(|dual| {
@@ -166,13 +162,13 @@ impl<T> Send<T, ()>
 where
     T: marker::Send + 'static,
 {
-    /// Supply a value of type `T`, and discard the empty continuation.
+    /// Supplies a value of type `T`, and discards the empty continuation.
     pub fn send1(self, value: T) {
         self.send(value)
     }
 
-    /// If the expected value is an `enum` holding sessions, choose a branch from the `enum`'s variants,
-    /// and directly obtain the [dual](crate::Session::Dual) of the supplied session.
+    /// If the expected value is an `enum` holding sessions, chooses a branch from the `enum`'s variants,
+    /// and directly obtains the [dual](crate::Session::Dual) of the supplied session.
     ///
     /// ```
     /// let branching: Send<Result<Recv<i64>, ()>>;
@@ -185,7 +181,7 @@ where
 }
 
 impl<S: Session> Send<S, ()> {
-    /// If the expected value is a session, supply it and directly obtain its [dual](crate::Session::Dual).
+    /// If the expected value is a session, supplies it and directly obtains its [dual](crate::Session::Dual).
     ///
     /// ```
     /// let needs_session: Send<Recv<i64>>;
