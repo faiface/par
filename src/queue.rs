@@ -16,7 +16,7 @@ pub struct Enqueue<T, S: Session = ()> {
 }
 
 pub enum Queue<T, S: Session = ()> {
-    Pop(T, Dequeue<T, S>),
+    Item(T, Dequeue<T, S>),
     Closed(S),
 }
 
@@ -71,7 +71,7 @@ where
         let mut accum = init;
         loop {
             match self.pop().await {
-                Queue::Pop(item, rest) => {
+                Queue::Item(item, rest) => {
                     accum = f(accum, item).await;
                     self = rest;
                 }
@@ -118,7 +118,7 @@ where
     }
 
     pub fn push(self, item: T) -> Self {
-        Self::fork_sync(|dual| self.enq.send1(Queue::Pop(item, dual)))
+        Self::fork_sync(|dual| self.enq.send1(Queue::Item(item, dual)))
     }
 }
 
