@@ -662,7 +662,7 @@
 //!
 //! The rules of the game are:
 //!
-//! 1. Each player independently picks one of two moves: _up_ or _down_.
+//! 1. Each player independently picks one of two moves: _UP_ or _DOWN_.
 //! 2. If everybody chooses the same move, it's a draw and the game repeats.
 //! 3. Otherwise, one player must have chosen differently from the other two: that player wins!
 //!
