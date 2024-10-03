@@ -149,7 +149,7 @@ fn handle_user(socket: WebSocketStream<TcpStream>) -> Recv<Option<Login>> {
 
     fork(|try_login: Send<Option<Login>>| async {
         let inbox = inbox.push(ChatLine::Info(format!("What's your name?")));
-        let Queue::Pop(name, messages) = messages.pop().await else {
+        let Queue::Item(name, messages) = messages.pop().await else {
             inbox.close1();
             return try_login.send1(None);
         };
