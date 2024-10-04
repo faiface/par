@@ -3,7 +3,7 @@ use futures::{channel::mpsc, StreamExt};
 use std::collections::HashMap;
 
 #[must_use]
-pub struct Server<Connect, Resume, ConnectionData = ()>
+pub struct Server<Connect, Resume, ConnectionData>
 where
     Connect: Session,
     Resume: Session,
