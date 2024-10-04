@@ -53,9 +53,9 @@ async fn main() -> io::Result<()> {
 }
 
 async fn serve(listener: TcpListener) {
-    let mut pool = Server::<Login, Outbox, Nick>::new();
+    let mut server = Server::<Login, Outbox, Nick>::new();
 
-    pool.proxy(|p| {
+    server.proxy(|p| {
         drop(tokio::spawn(accept_users(listener).for_each1(
             move |user| {
                 future::ready({
@@ -72,16 +72,20 @@ async fn serve(listener: TcpListener) {
         )))
     });
 
-    type Inboxes = HashMap<Nick, Option<Inbox>>;
+    type Inboxes = HashMap<Nick, Inbox>;
     fn broadcast(inboxes: &mut Inboxes, line: ChatLine) {
-        for (_, option) in inboxes {
-            *option = option.take().map(|inbox| inbox.push(line.clone()));
-        }
+        let entries = inboxes
+            .drain()
+            .map(|(nick, inbox)| (nick, inbox.push(line.clone())))
+            .collect::<Vec<_>>();
+        inboxes.extend(entries);
     }
 
     let mut inboxes = Inboxes::new();
-    while let Some((new_pool, transition)) = pool.poll().await {
-        pool = new_pool;
+
+    while let Some((new_server, transition)) = server.poll().await {
+        server = new_server;
+
         match transition {
             Transition::Connect { session: login } => {
                 let (nick, resp) = login.recv().await;
@@ -90,10 +94,11 @@ async fn serve(listener: TcpListener) {
                     continue;
                 };
                 let (inbox, conn) = resp.choose(Ok).recv().await;
-                entry.insert(Some(inbox));
+                entry.insert(inbox);
                 broadcast(&mut inboxes, ChatLine::Info(format!("{} joined", nick.0)));
-                pool.connection_with_data(nick, |c| conn.send1(c));
+                server.connection_with_data(nick, |c| conn.send1(c));
             }
+
             Transition::Resume {
                 session: outbox,
                 data: nick,
@@ -107,10 +112,10 @@ async fn serve(listener: TcpListener) {
                             content,
                         },
                     );
-                    pool.resume(nick, |c| conn.send1(c));
+                    server.resume(nick, |c| conn.send1(c));
                 }
                 Command::Logout => {
-                    if let Some(inbox) = inboxes.remove(&nick).flatten() {
+                    if let Some(inbox) = inboxes.remove(&nick) {
                         inbox.close1();
                     }
                     broadcast(&mut inboxes, ChatLine::Info(format!("{} left", nick.0)));
