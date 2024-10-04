@@ -55,19 +55,17 @@ async fn main() -> io::Result<()> {
 async fn serve(listener: TcpListener) {
     let mut server = Server::<Login, Outbox, Nick>::new();
 
-    server.proxy(|p| {
+    server.proxy(|px| {
         drop(tokio::spawn(accept_users(listener).for_each1(
             move |user| {
-                future::ready({
-                    p.clone(|proxy| {
-                        drop(tokio::spawn(async {
-                            let Some(login) = user.recv1().await else {
-                                return;
-                            };
-                            proxy.connect().link(login);
-                        }))
-                    })
-                })
+                future::ready(px.clone(|proxy| {
+                    drop(tokio::spawn(async {
+                        let Some(login) = user.recv1().await else {
+                            return;
+                        };
+                        proxy.connect().link(login);
+                    }))
+                }))
             },
         )))
     });
@@ -134,7 +132,6 @@ fn accept_users(listener: TcpListener) -> Dequeue<Recv<Option<Login>>> {
                 eprintln!("ERROR: No peer address");
                 continue;
             };
-
             let Ok(web_socket) = tokio_tungstenite::accept_async(stream).await else {
                 eprintln!("ERROR: Handshake failed with {}", addr);
                 continue;
@@ -158,12 +155,14 @@ fn handle_user(socket: WebSocketStream<TcpStream>) -> Recv<Option<Login>> {
             inbox.close1();
             return try_login.send1(None);
         };
+
         let Ok(accepted) = try_login.choose(Some).send(Nick(name)).recv1().await else {
             inbox
                 .push(ChatLine::Error(format!("Login refused")))
                 .close1();
             return messages.for_each1(|_| future::ready(())).await;
         };
+
         let conn = messages
             .fold1(accepted.send(inbox).recv1().await, |conn, content| async {
                 conn.resume()
@@ -173,15 +172,16 @@ fn handle_user(socket: WebSocketStream<TcpStream>) -> Recv<Option<Login>> {
                     .await
             })
             .await;
+
         conn.resume().send1(Command::Logout);
     })
 }
 
 fn handle_inbox(write: WebSocketWrite) -> Inbox {
     fork(|lines: Dequeue<ChatLine>| async {
-        let _ = lines
+        lines
             .fold1(write, |mut write, line| async {
-                let _ = write
+                write
                     .send(Message::text(match line {
                         ChatLine::Message {
                             from: Nick(name),
@@ -190,12 +190,14 @@ fn handle_inbox(write: WebSocketWrite) -> Inbox {
                         ChatLine::Info(content) => format!("> {}", content),
                         ChatLine::Error(content) => format!("? {}", content),
                     }))
-                    .await;
+                    .await
+                    .unwrap_or_else(|err| eprintln!("ERROR: {}", err));
                 write
             })
             .await
             .close()
-            .await;
+            .await
+            .unwrap_or_else(|err| eprintln!("ERROR: {}", err));
     })
 }
 
