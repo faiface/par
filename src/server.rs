@@ -2,6 +2,7 @@ use super::Session;
 use futures::{channel::mpsc, StreamExt};
 use std::collections::HashMap;
 
+#[must_use]
 pub struct Server<Connect, Resume, ConnectionData = ()>
 where
     Connect: Session,
@@ -13,14 +14,17 @@ where
     next_id: usize,
 }
 
-impl<C: Session, R: Session, D> Default for Server<C, R, D> {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct Proxy<Connect: Session> {
+    connect: Box<dyn SenderFn<Connect::Dual>>,
 }
 
 #[must_use]
-pub enum Transition<Connect, Resume, ConnectionData = ()>
+pub struct Connection<Resume: Session> {
+    resume: Box<dyn FnOnce(Resume::Dual) + Send>,
+}
+
+#[must_use]
+pub enum Event<Connect, Resume, ConnectionData = ()>
 where
     Connect: Session,
     Resume: Session,
@@ -34,43 +38,21 @@ where
     },
 }
 
-pub struct Proxy<Connect: Session> {
-    connect: Box<dyn SenderFn<Connect::Dual>>,
-}
-
-#[must_use]
-pub struct Connection<Resume: Session> {
-    resume: Box<dyn FnOnce(Resume::Dual) + Send>,
-}
-
-struct Sender<C: Session, R: Session, D>(mpsc::Sender<Exchange<C, R, D>>);
-struct Receiver<C: Session, R: Session, D>(mpsc::Receiver<Exchange<C, R, D>>);
-type Exchange<C, R, D> = (Sender<C, R, D>, Transition<C, R, D>);
-
-impl<C: Session, R: Session, D> Clone for Sender<C, R, D> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-trait SenderFn<T>: Send + Sync + 'static {
-    fn clone(&self) -> Box<dyn SenderFn<T>>;
-    fn send(self: Box<Self>, value: T);
-}
-
-impl<T, F: FnOnce(T) + Send + Sync + Clone + 'static> SenderFn<T> for F {
-    fn clone(&self) -> Box<dyn SenderFn<T>> {
-        Box::new((self as &F).clone())
-    }
-
-    fn send(self: Box<Self>, value: T) {
-        self(value)
-    }
-}
-
 impl<C: Session, R: Session, D> Server<C, R, D> {
-    pub fn new() -> Self {
+    #[must_use]
+    pub fn start(f: impl FnOnce(Proxy<C::Dual>)) -> Self {
         let (tx, rx) = mpsc::channel(0);
+
+        let mut proxy_sender = Sender(tx.clone());
+        f(Proxy {
+            connect: Box::new(move |session| {
+                proxy_sender
+                    .0
+                    .try_send((proxy_sender.clone(), Event::Connect { session }))
+                    .expect("server dropped");
+            }),
+        });
+
         Self {
             sender: Sender(tx),
             receiver: Receiver(rx),
@@ -79,19 +61,7 @@ impl<C: Session, R: Session, D> Server<C, R, D> {
         }
     }
 
-    pub fn proxy(&self, f: impl FnOnce(Proxy<C::Dual>)) {
-        let mut sender = self.sender.clone();
-        f(Proxy {
-            connect: Box::new(move |session| {
-                sender
-                    .0
-                    .try_send((sender.clone(), Transition::Connect { session }))
-                    .expect("pool dropped");
-            }),
-        })
-    }
-
-    pub fn connection_with_data(&mut self, data: D, f: impl FnOnce(Connection<R::Dual>)) {
+    pub fn suspend(&mut self, data: D, f: impl FnOnce(Connection<R::Dual>)) {
         let sender = self.sender.clone();
         let id = self.next_id;
         self.next_id += 1;
@@ -101,34 +71,23 @@ impl<C: Session, R: Session, D> Server<C, R, D> {
                 sender
                     .0
                     .clone()
-                    .try_send((sender, Transition::Resume { session, data: id }))
-                    .expect("pool dropped");
+                    .try_send((sender, Event::Resume { session, data: id }))
+                    .expect("server dropped");
             }),
         })
     }
 
-    pub fn connection(&mut self, f: impl FnOnce(Connection<R::Dual>))
-    where
-        D: Default,
-    {
-        self.connection_with_data(D::default(), f)
-    }
-
-    pub fn resume(&mut self, data: D, f: impl FnOnce(Connection<R::Dual>)) {
-        self.connection_with_data(data, f)
-    }
-
     #[must_use]
-    pub async fn poll(mut self) -> Option<(Self, Transition<C, R, D>)> {
+    pub async fn poll(mut self) -> Option<(Self, Event<C, R, D>)> {
         drop(self.sender);
         match self.receiver.0.next().await {
             Some((sender, trans)) => {
                 self.sender = sender;
                 let trans = match trans {
-                    Transition::Connect { session } => Transition::Connect { session },
-                    Transition::Resume { session, data: id } => {
+                    Event::Connect { session } => Event::Connect { session },
+                    Event::Resume { session, data: id } => {
                         let data = self.data.remove(&id).expect("missing connection data");
-                        Transition::Resume { session, data }
+                        Event::Resume { session, data }
                     }
                 };
                 Some((self, trans))
@@ -155,5 +114,30 @@ impl<R: Session> Connection<R> {
     #[must_use]
     pub fn resume(self) -> R {
         R::fork_sync(|dual| (self.resume)(dual))
+    }
+}
+
+struct Sender<C: Session, R: Session, D>(mpsc::Sender<Exchange<C, R, D>>);
+struct Receiver<C: Session, R: Session, D>(mpsc::Receiver<Exchange<C, R, D>>);
+type Exchange<C, R, D> = (Sender<C, R, D>, Event<C, R, D>);
+
+impl<C: Session, R: Session, D> Clone for Sender<C, R, D> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+trait SenderFn<T>: Send + Sync + 'static {
+    fn clone(&self) -> Box<dyn SenderFn<T>>;
+    fn send(self: Box<Self>, value: T);
+}
+
+impl<T, F: FnOnce(T) + Send + Sync + Clone + 'static> SenderFn<T> for F {
+    fn clone(&self) -> Box<dyn SenderFn<T>> {
+        Box::new((self as &F).clone())
+    }
+
+    fn send(self: Box<Self>, value: T) {
+        self(value)
     }
 }

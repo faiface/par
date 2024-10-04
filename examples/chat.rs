@@ -7,7 +7,7 @@ use par::{
     exchange::{Recv, Send},
     queue::{Dequeue, Enqueue, Queue},
     runtimes::tokio::fork,
-    server::{Connection, Server, Transition},
+    server::{Connection, Event, Server},
     Dual, Session,
 };
 use std::{
@@ -53,12 +53,10 @@ async fn main() -> io::Result<()> {
 }
 
 async fn serve(listener: TcpListener) {
-    let mut server = Server::<Login, Outbox, Nick>::new();
-
-    server.proxy(|px| {
+    let mut server = Server::<Login, Outbox, Nick>::start(|proxy| {
         drop(tokio::spawn(accept_users(listener).for_each1(
             move |user| {
-                future::ready(px.clone(|proxy| {
+                future::ready(proxy.clone(|proxy| {
                     drop(tokio::spawn(async {
                         let Some(login) = user.recv1().await else {
                             return;
@@ -85,7 +83,7 @@ async fn serve(listener: TcpListener) {
         server = new_server;
 
         match transition {
-            Transition::Connect { session: login } => {
+            Event::Connect { session: login } => {
                 let (nick, resp) = login.recv().await;
                 let Entry::Vacant(entry) = inboxes.entry(nick.clone()) else {
                     resp.send1(Err(LoginRefused));
@@ -94,10 +92,10 @@ async fn serve(listener: TcpListener) {
                 let (inbox, conn) = resp.choose(Ok).recv().await;
                 entry.insert(inbox);
                 broadcast(&mut inboxes, ChatLine::Info(format!("{} joined", nick.0)));
-                server.connection_with_data(nick, |c| conn.send1(c));
+                server.suspend(nick, |c| conn.send1(c));
             }
 
-            Transition::Resume {
+            Event::Resume {
                 session: outbox,
                 data: nick,
             } => match outbox.recv1().await {
@@ -110,7 +108,7 @@ async fn serve(listener: TcpListener) {
                             content,
                         },
                     );
-                    server.resume(nick, |c| conn.send1(c));
+                    server.suspend(nick, |c| conn.send1(c));
                 }
                 Command::Logout => {
                     if let Some(inbox) = inboxes.remove(&nick) {
