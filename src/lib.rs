@@ -300,7 +300,7 @@
 //! ```
 //!
 //! That's why we can simply receive the response from the ATM afterwards.
-//! 
+//!
 //! **What's going on?**
 //!
 //! There are two manual ways to accomplish what [`choose`](exchange::Send::choose) does.
@@ -656,7 +656,7 @@
 //! to previously described guarantees** like protocol adherence and deadlock freedom.
 //!
 //! The key lies in _how_ to **juggle multiple session end-points concurrently.**
-//! 
+//!
 //! **To demonstrate,** we'll implement a very simple game of 3 players. For a general pattern of uniformly
 //! handling a dynamic number of participants, check out the [server] module.
 //!
@@ -681,13 +681,13 @@
 //!     Up,
 //!     Down,
 //! }
-//! 
+//!
 //! enum Outcome {
 //!     Win,
 //!     Loss,
 //!     Draw(Round),
 //! }
-//! 
+//!
 //! type Round = Send<Move, Recv<Outcome>>;
 //! type Player = Dual<Round>; // Recv<Move, Send<Outcome>>
 //! ```
@@ -706,7 +706,7 @@
 //!     Second,
 //!     Third,
 //! }
-//! 
+//!
 //! type Game = Send<(Player, Player, Player), Recv<Winner>>;
 //! ```
 //!
@@ -718,19 +718,19 @@
 //! ```
 //! fn start_playing() -> Game {
 //!     use {Move::*, Outcome::*, Winner::*};
-//! 
+//!
 //!     fork(|game: Dual<Game>| async {
 //!         let ((mut player1, mut player2, mut player3), winner) = game.recv().await;
-//! 
+//!
 //!         loop {
 //!             let (move1, outcome1) = player1.recv().await;
 //!             let (move2, outcome2) = player2.recv().await;
 //!             let (move3, outcome3) = player3.recv().await;
-//! 
+//!
 //!             tokio::time::sleep(Duration::from_secs(1)).await;
 //!             println!("{:?} {:?} {:?}", move1, move2, move3);
 //!             tokio::time::sleep(Duration::from_secs(1)).await;
-//! 
+//!
 //!             match (move1, move2, move3) {
 //!                 (Up, Down, Down) | (Down, Up, Up) => {
 //!                     outcome1.send1(Win);
@@ -793,7 +793,7 @@
 //!         }
 //!     })
 //! }
-//! 
+//!
 //! fn random_move() -> Move {
 //!     if fastrand::bool() {
 //!         Move::Up
@@ -801,7 +801,7 @@
 //!         Move::Down
 //!     }
 //! }
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() {
 //!     for _ in 0..10 {
@@ -817,15 +817,15 @@
 //! ```plain
 //! Up Up Down
 //! Third!
-//! 
+//!
 //! Down Up Up
 //! First!
-//! 
+//!
 //! Down Down Down
 //! Draw...
 //! Up Down Up
 //! Second!
-//! 
+//!
 //! Down Up Down
 //! Second!
 //! ```
