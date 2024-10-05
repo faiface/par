@@ -3,7 +3,7 @@
 //! [`Connection`] to resume the interaction later.
 //!
 //! The communication structure of a server is composed of three parts:
-//! 
+//!
 //! - [`Server`] is the central manager of the clients. Use [`poll`](Server::poll) to handle
 //!   new connections (coming from [proxies](Proxy)), as well as resumptions of existing ones.
 //!   Use [`suspend`](Server::suspend) to create [`Connection`] handles for later resumption.
