@@ -46,7 +46,7 @@ use std::collections::HashMap;
 
 /// Listens to connection initiatioins (from a [`Proxy`]) and resumptions (from a [`Connection`]) and
 /// maintains local data for each active connection. Use [`suspend`](Self::suspend) to create or maintain
-/// active an connection.
+/// an active connection.
 ///
 /// The three generic parameters are as follows:
 ///
@@ -76,6 +76,7 @@ where
     receiver: Receiver<Connect, Resume, usize>,
     data: HashMap<usize, ConnectionData>,
     next_id: usize,
+    free_ids: Vec<usize>,
 }
 
 /// A handle for initiating new connections with the corresponding [server](Server). Use
@@ -120,7 +121,7 @@ where
 
 impl<Connect: Session, Resume: Session, ConnectionData> Server<Connect, Resume, ConnectionData> {
     /// Creates a new [`Server`] and passes a [`Proxy`] to it to the provided closure. Use the [`Proxy`]
-    /// to initiate connections to the server and use the returned [`Server`]` to [poll](Self::poll)
+    /// to initiate connections to the server and use the returned [`Server`] to [poll](Self::poll)
     /// [events](Event) of initiating and resuming connections.
     #[must_use]
     pub fn start(f: impl FnOnce(Proxy<Connect::Dual>)) -> Self {
@@ -141,6 +142,7 @@ impl<Connect: Session, Resume: Session, ConnectionData> Server<Connect, Resume, 
             receiver: Receiver(rx),
             data: HashMap::new(),
             next_id: 0,
+            free_ids: Vec::new(),
         }
     }
 
@@ -149,8 +151,7 @@ impl<Connect: Session, Resume: Session, ConnectionData> Server<Connect, Resume, 
     /// a client during the initiation and resumption protocols.
     pub fn suspend(&mut self, data: ConnectionData, f: impl FnOnce(Connection<Resume::Dual>)) {
         let sender = self.sender.clone();
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self.acquire_id();
         self.data.insert(id, data);
         f(Connection {
             resume: Box::new(move |session| {
@@ -175,6 +176,7 @@ impl<Connect: Session, Resume: Session, ConnectionData> Server<Connect, Resume, 
                 let trans = match trans {
                     Event::Connect { session } => Event::Connect { session },
                     Event::Resume { session, data: id } => {
+                        self.release_id(id);
                         let data = self.data.remove(&id).expect("missing connection data");
                         Event::Resume { session, data }
                     }
@@ -182,6 +184,23 @@ impl<Connect: Session, Resume: Session, ConnectionData> Server<Connect, Resume, 
                 Some((self, trans))
             }
             None => None,
+        }
+    }
+
+    fn acquire_id(&mut self) -> usize {
+        if let Some(id) = self.free_ids.pop() {
+            return id;
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    fn release_id(&mut self, id: usize) {
+        if id + 1 == self.next_id {
+            self.next_id = id;
+        } else {
+            self.free_ids.push(id);
         }
     }
 }
