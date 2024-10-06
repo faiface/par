@@ -1,4 +1,4 @@
-# ⅋ par -- session types for Rust
+# ⅋ par - session types for Rust
 
 [![Crates.io][crates-badge]][crates-url]
 [![Docs.rs][docs-badge]][docs-url]
@@ -8,6 +8,8 @@
 [crates-url]: https://crates.io/crates/par
 [docs-badge]: https://img.shields.io/docsrs/par
 [docs-url]: https://docs.rs/par/latest/par
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/faiface/par/blob/main/LICENSE
 
 **What's a session type, anyway?** It's a description an entire external behavior
 of a concurrent, message-passing process. From the first message, through every
