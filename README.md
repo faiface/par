@@ -1,4 +1,4 @@
-# ⅋ - session types for Rust
+# ⅋ — session types for Rust
 
 [![Crates.io][crates-badge]][crates-url]
 [![Docs.rs][docs-badge]][docs-url]
