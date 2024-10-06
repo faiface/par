@@ -25,9 +25,9 @@
 //! 
 //! > ❓ Reading this, one may easily think, _"I don't see deadlocks happen in practice..."_,
 //! and that's a valid objection! But it arises from our concurrent systems not being very
-//! complex due to lack of tools and types to be able to design and implement them reliably.
-//! As soon as one gets to that level of complexity, deadlocks become an issue, and having them
-//! ruled out proves crucial.
+//! complex due to a lack of tools and types to design and implement them reliably.
+//! At high levels of complexity, deadlocks become an issue, and having them ruled out
+//! proves crucial.
 //!
 //! Using session types, complex concurrent systems can be modelled and implemented with confidence,
 //! as any type-checked program is guaranteed to adhere to its protocol, and avoid any deadlocks.
@@ -43,21 +43,29 @@
 //!
 //! # Forking
 //!
-//! Communication involves two opposite points of view. For example, an exchange
-//! of a message is seen as _sending_ on one side, and _receiving_ on the other.
+//! Communication involves two opposing points of view. For example, an exchange
+//! of a message is seen as _sending_ on one side, and _receiving_ on the other. The idea
+//! extends to larger communication protocols. A turn-based game between two players looks
+//! like _"my move, your move"_ by one player, and _"your move, my move"_ by their opponent.
+//! Other examples are _"a player and the environment"_, _"a customer and a shop assistant"_,
+//! _"a server and a client"_.
 //!
-//! A type implementing the [Session] trait can be thought of as a handle to one of the
-//! two viewpoints. Its associated type [Dual](Session::Dual) represents the other
-//! side, cleverly restricted as [`Session<Dual = Self>`](Session::Dual), so
-//! that the two types form a dual pair.
+//! A type implementing the [`Session`] trait can be thought of as a handle to one of the
+//! two viewpoints of a certain communication protocol. Its associated type [Dual](Session::Dual)
+//! represents the other side, cleverly restricted as [`Session<Dual = Self>`](Session::Dual),
+//! so that the two types form a dual pair. **A concrete [`Session`] and its dual together
+//! describe a protocol.**
 //!
 //! For example, [`Recv<T>`](exchange::Recv) and [`Send<T>`](exchange::Send) from
-//! the [exchange] module are dual to one another.
+//! the [exchange] module form such a pair.
 //!
-//! A session handle can only be created together with its dual (to ensure protocol adherence),
-//! in two independent scopes (to prevent deadlocks). This moment of creation is called
-//! *forking*. The [Session] trait has its [fork_sync](Session::fork_sync) method for this
-//! purpose.
+//! A session handle can only be created together with its dual, and only in two independent
+//! visibility scopes. The former ensures protocol adherence -- the other side is always
+//! there --, while the latter prevents deadlocks -- different visibility scopes enable
+//! independent progress.
+//!
+//! This moment of creation is called *forking*. The [Session] trait has its
+//! [fork_sync](Session::fork_sync) method for this purpose.
 //!
 //! ```
 //! use par::{exchange::{Recv, Send}, Session};
@@ -73,13 +81,12 @@
 //! ```
 //!
 //! The function passed to [fork_sync](Session::fork_sync) is not asynchronous and is
-//! fully executed before [fork_sync](Session::fork_sync) returns. Usually, we want
-//! the two scopes to run concurrently, but that is dependent on the choice of an
-//! `async/await` runtime. In order to be runtime-agnostic, the [Session] trait itself
-//! only provides synchronous forking.
+//! fully executed before [fork_sync](Session::fork_sync) returns. Many useful combinators
+//! do not require `async`: offering only `async` forking would hurt those. Additionally,
+//! it enables the core library to be agnostic about the choice of an `async/await` runtime.
 //!
-//! To enable concurrency, we spawn a coroutine/thread inside the synchronous function.
-//! For example, with Tokio:
+//! However, in an application, we usually want the two sides to run concurrently. To do that,
+//! we spawn a coroutine/thread inside the synchronous function. For example, with Tokio:
 //!
 //! ```
 //! let sender: Send<i64> = Send::fork_sync(|receiver: Recv<i64>| {
@@ -90,8 +97,8 @@
 //! sender.send1(7);
 //! ```
 //!
-//! This crate provides utility modules for forking using popular runtimes. With these,
-//! the above can be reduced to:
+//! To make life easier, this crate provides utility modules for forking using popular runtimes.
+//! With these, the above can be reduced to:
 //!
 //! ```
 //! use par::runtimes::tokio::fork;
@@ -102,7 +109,7 @@
 //! sender.send1(7);
 //! ```
 //!
-//! **Important notice:** Session end-points **must not be dropped.** (TODO: explain...)
+//! > ❗️ Session end-points **must not be dropped.** (TODO: explain...)
 //!
 //! Now we will take a look at three basic ways to compose sessions:
 //! **sequencing**, **branching**, and **recursion**. These, together with
