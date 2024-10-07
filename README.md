@@ -66,7 +66,7 @@ When implementing a concurrent program according to a session type, the type tel
 what can happen at any point in the program. When we have to send a message, when to
 select a path to continue, when to wait for someone else to make a choice and adapt.
 
-Additionally, the types are designed to provide some useful guarantees:
+Crucially, the types are designed to provide some useful guarantees:
 
 - **Protocol adherence** -- Expectations delivered, obligations fulfilled.
 - **Deadlock freedom** -- Cyclic communication is statically ruled out.
