@@ -1,33 +1,18 @@
 # Cheatsheet
 
-<table>
-<tr>
-    <th></th>
-    <th>Code</th>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Fork concurrently</strong></td>
-<td>
+## Fork concurrently
 
 ```rust
 // code goes here
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Fork synchronously</strong></td>
-<td>
+## Fork synchronously
 
 ```rust
 // code goes here
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Duality equations</strong></td>
-<td>
+## Duality equations
 
 ```rust
 use par::{Session, Dual};
@@ -35,54 +20,21 @@ use par::exchange::{Recv, Send};
 use par::exchange::{Dequeue, Enqueue};
 ```
 
-<table>
-<tr>
-    <th><code>Self</code></th>
-    <th><code>Dual&lt;Self&gt;</code></th></tr>
-<tr>
-<tr>
-    <td><code>()</code></td>
-    <td><code>()</code></td>
-</tr>
-<tr>
-    <td><code>Recv&lt;T&gt;</code></td>
-    <td><code>Send&lt;T&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Send&lt;T&gt;</code></td>
-    <td><code>Recv&lt;T&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Recv&lt;T, S&gt;</code></td>
-    <td><code>Send&lt;T, Dual&lt;S&gt;&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Send&lt;T, S&gt;</code></td>
-    <td><code>Recv&lt;T, Dual&lt;S&gt;&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Dequeue&lt;T&gt;</code></td>
-    <td><code>Enqueue&lt;T&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Enqueue&lt;T&gt;</code></td>
-    <td><code>Dequeue&lt;T&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Dequeue&lt;T, S&gt;</code></td>
-    <td><code>Enqueue&lt;T, Dual&lt;S&gt;&gt;</code></td>
-</tr>
-<tr>
-    <td><code>Enqueue&lt;T, S&gt;</code></td>
-    <td><code>Dequeue&lt;T, Dual&lt;S&gt;&gt;</code></td>
-</tr>
-</table>
+| `Self` | `Dual<Self>` |
+| --- | --- |
+| `()` | `()` |
+| `Recv<T>` | `Send<T>` |
+| `Send<T>` | `Recv<T>` |
+| `Recv<T, S>` | `Send<T, Dual<S>>` |
+| `Send<T, S>` | `Recv<T, Dual<S>>` |
+| `Recv<Result<S1, S2>>` | `Send<Result<S1, S2>>` |
+| `Send<Result<S1, S2>>` | `Recv<Result<S1, S2>>` |
+| `Dequeue<T>` | `Enqueue<T>` |
+| `Enqueue<T>` | `Dequeue<T>` |
+| `Dequeue<T, S>` | `Enqueue<T, Dual<S>>` |
+| `Enqueue<T, S>` | `Dequeue<T, Dual<S>>` |
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Exchange last value</strong></td>
-<td>
+## Exchange last value
 
 ```rust
 use par::exchange::{Recv, Send};
@@ -98,11 +50,7 @@ me.send1(7);
 let value = you.recv1().await;
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Exchange a value and proceed</strong></td>
-<td>
+## Exchange a value and proceed
 
 ```rust
 use par::{Session, Dual};
@@ -123,11 +71,7 @@ let you = you.send(7);
 // you: YourSide
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Branch on a standard <code>enum</code></strong></td>
-<td>
+## Branch on a standard <code>enum</code>
 
 ```rust
 // me: Recv<Option<Recv<i64>>>
@@ -147,11 +91,7 @@ let you = you.choose(Some);
 you.send1(7);
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Branch on a custom <code>enum</code></strong></td>
-<td>
+## Branch on a custom <code>enum</code>
 
 ```rust
 enum Choice {
@@ -175,11 +115,7 @@ match you.recv().await {
 }
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Link separate dual sessions</strong></td>
-<td>
+## Link separate dual sessions
 
 ```rust
 use par::Session;
@@ -192,11 +128,7 @@ fn wire(me: MySession, you: YourSession) {
 }
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Recursive session</strong></td>
-<td>
+## Recursive session
 
 ```rust
 enum Counting {
@@ -230,11 +162,7 @@ let sum = start_counting()
 assert_eq!(sum, 8);
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Queue</strong></td>
-<td>
+## Queue
 
 ```rust
 use par::queue::Dequeue;
@@ -263,26 +191,14 @@ let sum = start_counting_with_queue()
 assert_eq!(sum, 8);
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Juggle multiple sessions concurrently</strong></td>
-<td>
+## Juggle multiple sessions concurrently
 
 ```rust
 // code goes here
 ```
 
-</td>
-</tr>
-<tr>
-<td style="vertical-align:top"><strong>Server</strong></td>
-<td>
+## Server
 
 ```rust
 // code goes here
 ```
-
-</td>
-</tr>
-</table>
