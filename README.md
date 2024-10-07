@@ -119,6 +119,8 @@ or understand this library.
 
 [**Continue reading the tutorial...**][docs-url]
 
-> ❤️ If you like what you see, and want to see more, [**consider sponsoring!**](https://github.com/sponsors/faiface)
+---
+
+❤️ If you like what you see, and want to see more, [**consider sponsoring!**](https://github.com/sponsors/faiface)
 It really helps with being able
 to do what I love, alongside navigating life.
