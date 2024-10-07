@@ -3,7 +3,6 @@
 [![Crates.io][crates-badge]][crates-url]
 [![Docs.rs][docs-badge]][docs-url]
 [![MIT licensed][mit-badge]][mit-url]
-<iframe src="https://github.com/sponsors/faiface/button" title="Sponsor faiface" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
 
 [crates-badge]: https://img.shields.io/crates/v/par
 [crates-url]: https://crates.io/crates/par
@@ -120,6 +119,5 @@ or understand this library.
 
 [**Continue reading the tutorial...**][docs-url]
 
-<iframe src="https://github.com/sponsors/faiface/button" title="Sponsor faiface" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
-If you like what you see, and want to see more, consider sponsoring! It really helps with being able
+> ❤️ If you like what you see, and want to see more, consider sponsoring! It really helps with being able
 to do what I love, alongside navigating life.
