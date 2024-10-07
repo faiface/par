@@ -51,11 +51,8 @@ Respond with your nickname and you're in the room. Make multiple connections and
 | `alice> hey bob!` | `alice> hey bob!` |
 |  | **`hey alice! how are you doing?`** |
 | `bob> hey alice! how are you doing?` | `bob> hey alice! how are you doing?` |
-| **`pretty good! session types are cool ;)`** |  |
-| `alice> pretty good! session types are cool ;)` | `alice> pretty good! session types are cool ;)` |
-|  |  |
-|  |  |
-|  |  |
+| **`good! session types are cool ;)`** |  |
+| `alice> good! session types are cool ;)` | `alice> good! session types are cool ;)` |
 </details>
 
 ## Introduction
