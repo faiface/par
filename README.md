@@ -11,7 +11,54 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/faiface/par/blob/main/LICENSE
 
-### [[Cheatsheet]](https://github.com/faiface/par/blob/main/CHEATSHEET.md)
+[cheatsheet-url]: https://github.com/faiface/par/blob/main/CHEATSHEET.md
+[chat-example-url]: https://github.com/faiface/par/blob/main/examples/chat.rs
+
+### [Cheatsheet][cheatsheet-url]
+
+### [Showcase example: Chat server][chat-example-url]
+
+<details>
+<summary>Try it out!</summary>
+
+This example is a simple single-room chat server that operates via WebSocket. After
+cloning the repository, run it with:
+
+```plain
+> cargo run --example chat
+Listening on: 127.0.0.1:3000
+```
+
+Use any WebSocket client to connect to it. For example, I like to use [Postman](https://www.postman.com).
+
+Right after connection, you should get a message:
+
+```plain
+> What's your name?
+```
+
+Respond with your nickname and you're in the room. Make multiple connections and chat away!
+
+| | |
+| --- | --- |
+| `> What's your name?` |  |
+| **`alice`** |  |
+| `> alice joined` |  |
+|  | `> What's your name?` |
+|  | **`bob`** |
+| `> bob joined` | `> bob joined` |
+| **`hey bob!`** |  |
+| `alice> hey bob!` | `alice> hey bob!` |
+|  | **`hey alice! how are you doing?`** |
+| `bob> hey alice! how are you doing?` | `bob> hey alice! how are you doing?` |
+| **`pretty good! session types are cool ;)`** |  |
+| `alice> pretty good! session types are cool ;)` | `alice> pretty good! session types are cool ;)` |
+|  |  |
+|  |  |
+|  |  |
+</details>
+
+## Introduction
 
 **What's a session type, anyway?** It's a description an entire external behavior
 of a concurrent, message-passing process. From the first message, through every
