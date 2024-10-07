@@ -39,7 +39,7 @@ Right after connection, you should get a message:
 
 Respond with your nickname and you're in the room. Make multiple connections and chat away!
 
-| | |
+| Alice | Bob |
 | --- | --- |
 | `> What's your name?` |  |
 | **`alice`** |  |
