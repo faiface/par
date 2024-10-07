@@ -3,6 +3,7 @@
 [![Crates.io][crates-badge]][crates-url]
 [![Docs.rs][docs-badge]][docs-url]
 [![MIT licensed][mit-badge]][mit-url]
+<iframe src="https://github.com/sponsors/faiface/button" title="Sponsor faiface" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
 
 [crates-badge]: https://img.shields.io/crates/v/par
 [crates-url]: https://crates.io/crates/par
@@ -55,6 +56,23 @@ Respond with your nickname and you're in the room. Make multiple connections and
 | `alice> good! session types are cool ;)` | `alice> good! session types are cool ;)` |
 </details>
 
+## Features
+
+- **Specify full concurrent protocols** — Sequencing, branching, recursion, higher-order patterns.
+- **Type-checked protocol adherence** — Expectations delivered, obligations fulfilled.
+- **Deadlock freedom** — Cyclic communication is statically ruled out.
+- **Multiple concurrent participants.**
+- **Fits well with Rust's type system:**
+  - Use `enum`s for making choices.
+  - Use recursion on types for cyclic protocols.
+- **Built on top of `async`/`.await`. Runtime agnostic.**
+- **Ergonomic design** — eg. `atm.choose(Operation::CheckBalance)`
+- **Standard patterns in modules:**
+  - [**Queue**](https://docs.rs/par/latest/par/queue/index.html) — Transmit an arbitrary number of items in order.
+  - [**Server**](https://docs.rs/par/latest/par/server/index.html) — Concurrently handle a dynamic number of clients.
+- **No unsafe!**
+- **Accessible [documentation][docs-url] as a learning tool.**
+
 ## Introduction
 
 **What's a session type, anyway?** It's a description an entire external behavior
@@ -68,8 +86,8 @@ select a path to continue, when to wait for someone else to make a choice and ad
 
 Crucially, the types are designed to provide some useful guarantees:
 
-- **Protocol adherence** -- Expectations delivered, obligations fulfilled.
-- **Deadlock freedom** -- Cyclic communication is statically ruled out.
+- **Protocol adherence** — Expectations delivered, obligations fulfilled.
+- **Deadlock freedom** — Cyclic communication is statically ruled out.
 
 _Protocol adherence_ means that when interacting with a process described by a session
 type, we can be sure (unless it crashes) that it will behave according to the protocol
@@ -101,3 +119,7 @@ of propositional linear logic. However, no knowledge of linear logic is required
 or understand this library.
 
 [**Continue reading the tutorial...**][docs-url]
+
+<iframe src="https://github.com/sponsors/faiface/button" title="Sponsor faiface" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+If you like what you see, and want to see more, consider sponsoring! It really helps with being able
+to do what I love, alongside navigating life.
