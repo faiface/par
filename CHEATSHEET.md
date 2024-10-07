@@ -3,13 +3,27 @@
 ## Fork concurrently
 
 ```rust
-// code goes here
+use par::{Session, Dual};
+
+type MySession: Session;
+type YourSession = Dual<MySession>;
+
+use par::runtimes::tokio::fork;
+
+let me: MySession = fork(|you: YourSession| async {
+    // handle 'you', asynchronously
+});
+// handle 'me'
 ```
 
 ## Fork synchronously
 
 ```rust
-// code goes here
+let you: YourSession = MySession::fork_sync(|me| {
+    // handle 'me'
+    // this body completes before `fork_sync` returns
+});
+// handle 'you'
 ```
 
 ## Duality equations
@@ -194,11 +208,11 @@ assert_eq!(sum, 8);
 ## Juggle multiple sessions concurrently
 
 ```rust
-// code goes here
+// TODO
 ```
 
 ## Server
 
 ```rust
-// code goes here
+// TODO
 ```
