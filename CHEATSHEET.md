@@ -237,6 +237,8 @@ assert_eq!(sum, 8);
 <td>
 
 ```rust
+use par::queue::Dequeue;
+
 type Numbers = Dequeue<i64, Send<i64>>;
 type Counter = Dual<Numbers>;
 
