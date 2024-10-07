@@ -11,6 +11,8 @@
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/faiface/par/blob/main/LICENSE
 
+### [[Cheatsheet]](https://github.com/faiface/par/blob/main/CHEATSHEET.md)
+
 **What's a session type, anyway?** It's a description an entire external behavior
 of a concurrent, message-passing process. From the first message, through every
 possible path and interaction that can be made with it, to all the ways it can
@@ -53,3 +55,5 @@ reason and talk about large concurrent systems.
 > 📚 The particular flavor of session types presented here is a full implementation
 of propositional linear logic. However, no knowledge of linear logic is required to use
 or understand this library.
+
+[**Continue reading the tutorial...**][docs-url]
