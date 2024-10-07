@@ -68,7 +68,7 @@ Respond with your nickname and you're in the room. Make multiple connections and
 - **Ergonomic design** — eg. `atm.choose(Operation::CheckBalance)`
 - **Standard patterns in modules:**
   - [**Queue**](https://docs.rs/par/latest/par/queue/index.html) — Transmit an arbitrary number of items in order.
-  - [**Server**](https://docs.rs/par/latest/par/server/index.html) — Concurrently handle a dynamic number of clients.
+  - [**Server**](https://docs.rs/par/latest/par/server/index.html) — Handle a dynamic number of clients concurrently.
 - **No unsafe!**
 - **Accessible [documentation][docs-url] as a learning tool.**
 
