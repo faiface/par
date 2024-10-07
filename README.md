@@ -31,7 +31,7 @@ Listening on: 127.0.0.1:3000
 
 Use any WebSocket client to connect to it. For example, I like to use [Postman](https://www.postman.com).
 
-Right after connection, you should get a message:
+Right after connecting, you should get a message:
 
 ```plain
 > What's your name?
