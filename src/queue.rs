@@ -24,8 +24,12 @@ use super::{
     exchange::{Recv, Send},
     Session,
 };
-use futures::Future;
-use std::marker;
+use futures::{Future, FutureExt, Stream};
+use std::{
+    marker,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// Produces an arbitrary number of values of type `T`, then proceeds according to `S`. Its dual
 /// is [`Enqueue<T, Dual<S>>`].
@@ -153,6 +157,14 @@ where
     {
         self.for_each(f).await
     }
+
+    /// Turns a [`Dequeue`] without a continuation into a standard [`Stream`](futures::Stream).
+    #[must_use]
+    pub fn into_stream1(self) -> DequeueStream1<T> {
+        DequeueStream1 {
+            future: Box::pin(self.pop()),
+        }
+    }
 }
 
 impl<T, S: Session> Enqueue<T, S>
@@ -180,5 +192,28 @@ where
     /// Closes the queue, signaling to the other side that no more items will be pushed.
     pub fn close1(self) {
         self.close()
+    }
+}
+
+/// A [`Stream`](futures::Stream) producing all items from a [`Dequeue`].
+pub struct DequeueStream1<T> {
+    future: Pin<Box<dyn Future<Output = Queue<T, ()>> + marker::Send + 'static>>,
+}
+
+impl<T> Stream for DequeueStream1<T>
+where
+    T: marker::Send + 'static,
+{
+    type Item = T;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.future.poll_unpin(cx) {
+            Poll::Ready(Queue::Item(value, next)) => {
+                self.future = Box::pin(next.pop());
+                Poll::Ready(Some(value))
+            }
+            Poll::Ready(Queue::Closed(())) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
