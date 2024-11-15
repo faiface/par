@@ -6,12 +6,12 @@
 //! When implementing a concurrent program according to a session type, the type tells
 //! what can happen at any point in the program. When we have to send a message, when to
 //! select a path to continue, when to wait for someone else to make a choice and adapt.
-//! 
+//!
 //! Crucially, the types are designed to provide some useful guarantees:
-//! 
+//!
 //! - **Protocol adherence** -- Expectations delivered, obligations fulfilled.
 //! - **Deadlock freedom** -- Cyclic communication is statically ruled out.
-//! 
+//!
 //! _Protocol adherence_ means that when interacting with a process described by a session
 //! type, we can be sure (unless it crashes) that it will behave according to the protocol
 //! specified by its type. There will no unexpected messages, nor forgotten obligations.
@@ -22,7 +22,7 @@
 //! achieved by imposing a certain structure on how processes are connected. It can take
 //! a bit of getting used to, but it becomes very important when implementing very complex
 //! concurrent systems.
-//! 
+//!
 //! > ❓ Reading this, one may easily think, _"I don't see deadlocks happen in practice..."_,
 //! and that's a valid objection! But it arises from our concurrent systems not being very
 //! complex due to a lack of tools and types to design and implement them reliably.
