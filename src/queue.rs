@@ -134,6 +134,15 @@ where
     {
         self.fold((), |(), item| f(item)).await.1
     }
+
+    /// Turns a [`Dequeue`] into a standard [`Stream`](futures::Stream) of [`Next<T, S>`], producing
+    /// all items from the queue before producing its final continuation.
+    #[must_use]
+    pub fn into_stream(self) -> DequeueStream<T, S> {
+        DequeueStream {
+            future: Box::pin(self.pop()),
+        }
+    }
 }
 
 impl<T> Dequeue<T, ()>
@@ -192,6 +201,37 @@ where
     /// Closes the queue, signaling to the other side that no more items will be pushed.
     pub fn close1(self) {
         self.close()
+    }
+}
+
+/// A [`Stream`](futures::Stream) of [`Next<T, S>`] producing all items from the queue before
+/// producing its final continuation.
+pub struct DequeueStream<T, S: Session> {
+    future: Pin<Box<dyn Future<Output = Queue<T, S>> + marker::Send + 'static>>,
+}
+
+/// The [`Stream::Item`](futures::Stream::Item) of [`DequeueStream<S, T>`], distinguishing between
+/// a popped item and a closed queue with its final continuation.
+pub enum Next<T, S: Session> {
+    Item(T),
+    Closed(S),
+}
+
+impl<T, S: Session> Stream for DequeueStream<T, S>
+where
+    T: marker::Send + 'static,
+{
+    type Item = Next<T, S>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.future.poll_unpin(cx) {
+            Poll::Ready(Queue::Item(value, next)) => {
+                self.future = Box::pin(next.pop());
+                Poll::Ready(Some(Next::Item(value)))
+            }
+            Poll::Ready(Queue::Closed(session)) => Poll::Ready(Some(Next::Closed(session))),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
