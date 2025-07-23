@@ -20,7 +20,7 @@
 //! - `Send<Result<A, B>>` is **A<sup>⊥</sup> & B<sup>⊥</sup>**
 
 use super::Session;
-use futures::channel::oneshot;
+use futures::{channel::oneshot, FutureExt};
 use std::marker;
 
 /// Supplies a value of type `T`, then proceeds according to `S`. Its dual is [`Send<T, Dual<S>>`].
@@ -130,6 +130,19 @@ where
             }
         }
     }
+
+    #[must_use]
+    pub fn poll_recv(mut self, cx: &mut std::task::Context<'_>) -> Result<(T, S), Self> {
+        use std::task::Poll;
+        loop {
+            self = match self.rx.poll_unpin(cx) {
+                Poll::Ready(Ok(Exchange::Send(x))) => return Ok(x),
+                Poll::Ready(Ok(Exchange::Link(r))) => r,
+                Poll::Ready(Err(oneshot::Canceled)) => panic!("sender dropped"),
+                Poll::Pending => return Err(self),
+            }
+        }
+    }
 }
 
 impl<T> Recv<T, ()>
@@ -139,6 +152,11 @@ where
     /// Waits to obtain a value of type `T`, and discards the empty continuation.
     pub async fn recv1(self) -> T {
         self.recv().await.0
+    }
+
+    #[must_use]
+    pub fn poll_recv1(self, cx: &mut std::task::Context<'_>) -> Result<T, Self> {
+        self.poll_recv(cx).map(|(t, ())| t)
     }
 }
 
